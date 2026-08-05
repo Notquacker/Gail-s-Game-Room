@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Getal Filter ♥ Gail's Game Room</title>
+<link rel="icon" type="image/png" href="build/icon.png">
+<meta name="theme-color" content="#f7f0e2">
+<link rel="stylesheet" href="shared.css">
+<style>
+  body{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:56px 10px 130px; }
+  #app{ width:min(94vw, 480px); display:flex; flex-direction:column; gap:12px; }
+
+  .panel{
+    background:var(--card); border:3px solid var(--ink); border-radius:16px;
+    padding:14px 16px; box-shadow:3px 4px 0 rgba(92,74,61,.2);
+  }
+  .panelLabel{ font-size:14px; letter-spacing:.03em; color:var(--ink-soft); margin-bottom:8px; }
+
+  .ruleRow{ display:flex; gap:8px; }
+  .ruleInput{
+    flex:1; background:#fffdf6; border:2px solid #e0d5c2; border-radius:9px;
+    color:var(--ink); padding:9px 12px; font-family:inherit; font-size:15px; outline:none;
+  }
+  .ruleInput:focus{ border-color:var(--blue); }
+  .addBtn{ font-size:15px; padding:8px 18px; }
+
+  .errorText{ margin:8px 0 0; font-size:12.5px; color:#c96a6a; }
+  .hintText{ margin:8px 0 0; font-size:11.5px; color:var(--ink-soft); line-height:1.6; }
+
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .chip{
+    background:linear-gradient(180deg,#f3e6f7,#e9d3ef); border:2px solid var(--lilac); border-radius:20px;
+    padding:4px 11px; font-size:12.5px; color:var(--ink); cursor:pointer; user-select:none;
+  }
+
+  .clearLink{
+    margin-top:10px; background:none; border:none; color:var(--ink-soft); text-decoration:underline;
+    cursor:pointer; font-family:inherit; font-size:12.5px; padding:0; display:inline-block;
+  }
+
+  .grid{ display:grid; grid-template-columns:repeat(10, 1fr); gap:4px; }
+  .numCell{
+    aspect-ratio:1/1; display:flex; align-items:center; justify-content:center;
+    border-radius:6px; font-size:12px; cursor:pointer; user-select:none;
+    background:#fffdf6; border:1.5px solid #e0d5c2; color:var(--ink-soft);
+  }
+  .numCell.active{
+    background:linear-gradient(180deg,#f6d9b0,#f0c4a0); border-color:#d9a86a; color:var(--ink); font-weight:700;
+  }
+  .numCell.guessed{
+    background:#efe8d6; border-color:#e5dcc4; color:#b3a68c; text-decoration:line-through;
+  }
+
+  @media (max-width:380px){
+    .numCell{ font-size:10.5px; }
+  }
+</style>
+</head>
+<body>
+
+<h1 class="bigtitle" style="font-size:34px;">Getal Filter</h1>
+<div class="sub tiny" id="subtext" style="max-width:min(94vw,480px); text-align:center;">
+  typ voorwaarden om de honderd getallen te versmallen tot dat ene ♥
+</div>
+
+<div id="app"></div>
+
+<script src="shared.js"></script>
+<script>
+function sumDigits(n){
+  return String(n).split('').reduce((a,d) => a + Number(d), 0);
+}
+
+/* Parse a rule typed by the user into { label, test(n) }, or null if invalid.
+   Dutch and English keywords both work, plus two shorthand symbols:
+   ":N" (gedeeld door N / divided by N) and "xN" (tafel van N / multiples of N). */
+function parseRule(raw){
+  const s = raw.trim().toLowerCase().replace(/\s+/g, '');
+  if(!s) return null;
+
+  if(s === 'even') return { label:'even', test:n => n % 2 === 0 };
+  if(s === 'oneven' || s === 'odd') return { label:s, test:n => n % 2 !== 0 };
+
+  let m = s.match(/^(tussen|between)(\d+)-(\d+)$/);
+  if(m){
+    const word = m[1], a = Number(m[2]), b = Number(m[3]);
+    return { label:`${word} ${a}-${b}`, test:n => n >= Math.min(a,b) && n <= Math.max(a,b) };
+  }
+  m = s.match(/^(\d+)\.\.(\d+)$/);
+  if(m){
+    const a = Number(m[1]), b = Number(m[2]);
+    return { label:`${a}..${b}`, test:n => n >= Math.min(a,b) && n <= Math.max(a,b) };
+  }
+
+  m = s.match(/^(cijfersom|digitsum|sum)=(\d+)$/);
+  if(m){
+    const v = Number(m[2]);
+    return { label:`${m[1]}=${v}`, test:n => sumDigits(n) === v };
+  }
+
+  m = s.match(/^(deelbaardoor|dividedby|divided)(\d+)$/);
+  if(m){
+    const word = m[1], v = Number(m[2]);
+    if(v === 0) return null;
+    return { label: word === 'deelbaardoor' ? `deelbaar door ${v}` : `divided by ${v}`, test:n => n % v === 0 };
+  }
+
+  // ":N" — gedeeld door N / divided by N (shorthand for deelbaardoorN)
+  m = s.match(/^:(\d+)$/);
+  if(m){
+    const v = Number(m[1]);
+    if(v === 0) return null;
+    return { label:`:${v}`, test:n => n % v === 0 };
+  }
+
+  // "xN" — tafel van N / multiples of N (vermenigvuldigen)
+  m = s.match(/^x(\d+)$/);
+  if(m){
+    const v = Number(m[1]);
+    if(v === 0) return null;
+    return { label:`x${v}`, test:n => n % v === 0 };
+  }
+
+  m = s.match(/^(>=|<=|==|=|>|<)(\d+)$/);
+  if(m){
+    const op = m[1] === '=' ? '==' : m[1];
+    const v = Number(m[2]);
+    const ops = { '>':n=>n>v, '<':n=>n<v, '>=':n=>n>=v, '<=':n=>n<=v, '==':n=>n===v };
+    return { label:`${op}${v}`, test:ops[op] };
+  }
+
+  return null;
+}
+
+const SAVE_KEY = 'getalfilter-save';
+const numbers = Array.from({length:100}, (_,i) => i+1);
+
+let rules = [];               // { label, test }
+let error = '';
+let guessed = new Set();
+let celebrated = false;
+let pendingFocus = null;      // 'ruleInput' or null
+
+function isActive(n){ return rules.every(r => r.test(n)); }
+
+/* ---------------- persistence ---------------- */
+function saveState(){
+  try{
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      ruleLabels: rules.map(r => r.label), guessed: [...guessed]
+    }));
+  }catch(e){}
+}
+function loadSaved(){
+  try{ const raw = localStorage.getItem(SAVE_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+
+/* ---------------- actions ---------------- */
+function submitRule(){
+  const el = document.getElementById('ruleInput');
+  const raw = el ? el.value : '';
+  const parts = raw.split(',').map(p => p.trim()).filter(Boolean);
+  pendingFocus = 'ruleInput';
+  if(parts.length === 0){ render(); return; }
+
+  const newRules = [], bad = [];
+  for(const part of parts){
+    const parsed = parseRule(part);
+    if(parsed) newRules.push(parsed); else bad.push(part);
+  }
+  if(newRules.length > 0){ rules = [...rules, ...newRules]; tone(680, 0, .07, 'triangle', .05); }
+
+  if(bad.length > 0){
+    error = `Snap dit niet: ${bad.join(', ')}. Probeer bv: >40, <87, even, cijfersom=7, deelbaardoor5, tussen20-30, :5, x5`;
+    thud();
+  } else {
+    error = '';
+  }
+  render();
+}
+function removeRule(idx){
+  rules = rules.filter((_,i) => i !== idx);
+  render();
+}
+function clearRules(){
+  rules = []; error = '';
+  render();
+}
+function clearGuessed(){
+  guessed = new Set();
+  render();
+}
+function resetAll(){
+  rules = []; error = ''; guessed = new Set(); celebrated = false;
+  render();
+}
+function toggleGuess(n){
+  const next = new Set(guessed);
+  if(next.has(n)) next.delete(n); else next.add(n);
+  guessed = next;
+  render();
+}
+
+/* ---------------- rendering ---------------- */
+const app = document.getElementById('app');
+
+function render(){
+  saveState();
+  const remaining = numbers.filter(isActive);
+
+  app.innerHTML = `
+    <div class="panel">
+      <div class="panelLabel">${remaining.length} van 100 getallen over</div>
+      <div class="ruleRow">
+        <input type="text" id="ruleInput" class="ruleInput" placeholder="bv. even, <60, >10">
+        <button class="btn addBtn" id="addBtn">voeg toe</button>
+      </div>
+      ${error ? `<p class="errorText">${error}</p>` : ''}
+      <p class="hintText">
+        mogelijk: &gt;N, &lt;N, &gt;=N, &lt;=N, ==N, even, oneven, tussenA-B, cijfersom=N,
+        deelbaardoorN, :N (gedeeld door N), xN (tafel van N)<br>
+        english: odd, betweenA-B, sum=N / digitsum=N, dividedN / dividedbyN
+      </p>
+      ${rules.length > 0 ? `
+        <div class="chips">
+          ${rules.map((r,i) => `<div class="chip" data-rule-idx="${i}" title="klik om te verwijderen">${r.label} ✕</div>`).join('')}
+        </div>` : ''}
+      <div style="display:flex; gap:14px; flex-wrap:wrap;">
+        ${rules.length > 0 ? `<button class="clearLink" id="clearRulesBtn">wis regels</button>` : ''}
+        ${guessed.size > 0 ? `<button class="clearLink" id="clearGuessedBtn">wis gegokte nummers (${guessed.size})</button>` : ''}
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="grid" id="grid">
+        ${numbers.map(n => {
+          const active = isActive(n), isGuessed = guessed.has(n);
+          return `<div class="numCell ${active ? 'active' : ''} ${isGuessed ? 'guessed' : ''}" data-n="${n}">${n}</div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+
+  wireInputs();
+  if(pendingFocus === 'ruleInput'){
+    const el = document.getElementById('ruleInput');
+    if(el) el.focus();
+    pendingFocus = null;
+  }
+
+  if(remaining.length === 1){
+    if(!celebrated){
+      celebrated = true;
+      fanfare(); awoo();
+      sparkEl(document.querySelector('.panelLabel'), 20);
+      showBanner('gevonden! ♥', 2400);
+    }
+  } else {
+    celebrated = false;
+  }
+}
+
+function wireInputs(){
+  document.getElementById('addBtn').onclick = submitRule;
+  document.getElementById('ruleInput').onkeydown = e => { if(e.key === 'Enter') submitRule(); };
+
+  document.querySelectorAll('[data-rule-idx]').forEach(chip => {
+    chip.onclick = () => removeRule(+chip.dataset.ruleIdx);
+  });
+  const clearRulesBtn = document.getElementById('clearRulesBtn');
+  if(clearRulesBtn) clearRulesBtn.onclick = clearRules;
+  const clearGuessedBtn = document.getElementById('clearGuessedBtn');
+  if(clearGuessedBtn) clearGuessedBtn.onclick = clearGuessed;
+
+  document.getElementById('grid').addEventListener('click', e => {
+    const cell = e.target.closest('.numCell');
+    if(cell) toggleGuess(+cell.dataset.n);
+  });
+}
+
+buildPack();
+setupPause(resetAll);
+
+const saved = loadSaved();
+if(saved && Array.isArray(saved.ruleLabels)){
+  rules = saved.ruleLabels.map(parseRule).filter(Boolean);
+  guessed = new Set(Array.isArray(saved.guessed) ? saved.guessed : []);
+}
+render();
+</script>
+</body>
+</html>

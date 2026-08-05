@@ -2,7 +2,7 @@
 
 # Gail's Game Room ♥
 
-*Five cozy games made with love for **Gail**, starring our three babies —
+*Six cozy games made with love for **Gail**, starring our three babies —
 **Archy**, **Ice** & **Chip** the huskies.*
 
 | Game | What it is |
@@ -11,7 +11,8 @@
 | 🧩 **Sudoku** | freshly generated puzzles (always exactly one solution), three difficulties, hints, and your progress auto-saves |
 | 🟩 **Wordle** | guess the five-letter word in six tries — real English *and* Dutch words, checked against a live dictionary |
 | 🥗 **Word Salad** | find the hidden words — themed around the pack, love, and home |
-| 🔢 **Cipher Duel** | crack a hidden 4-digit code — play a pass-and-play duel with a friend, or go solo against **Ice**, who guesses back and remembers every wrong digit |
+| 🔢 **Cipher Duel** | crack a hidden 6-digit code — play a pass-and-play duel with a friend, or go solo against **Ice**, who guesses back and remembers every wrong digit |
+| 🔎 **Getal Filter** | type logic rules (`even`, `>40`, `cijfersom=7`, `tussen20-30`, …) to narrow a grid of 100 numbers down to one |
 
 Open the game, land on a **home screen**, pick a game from the **game room** menu, and every
 game shares the same pastel look, pause menu, and husky supervision from the corner.
@@ -100,21 +101,33 @@ below the grid. Found words get crossed off and highlighted in the grid.
 
 ### 🔢 Cipher Duel
 
-Enter your own 4-digit secret, then log guesses row by row for both players. Tap the little
-dot on a digit once its **position** is confirmed correct — later rows lock that digit in for
-you automatically. The 🐾 button switches to solo mode against **Ice**: she hides her own code
-for you to guess (correct digits lock in on their own), and her **Ice's turn** button makes her
-guess back at yours, one row per tap — she remembers every wrong digit and deduces the last one
-for free once nine are ruled out. Your board **auto-saves**.
+Enter your own 6-digit secret, then log guesses row by row for both players. Typing auto-advances
+to the next box, and tapping the little dot on a digit (or typing the right one against **Ice**)
+turns it green right where you entered it — nothing gets auto-filled elsewhere, so every row stays
+an honest guess. The 🐾 button switches to solo mode against **Ice**: she hides her own code for
+you to guess, and her **Ice's turn** button makes her guess back at yours, one row per tap — she
+remembers every wrong digit and deduces the last one for free once nine are ruled out. Your board
+**auto-saves**.
+
+### 🔎 Getal Filter
+
+Type logic rules — `even`, `oneven`/`odd`, `>40`, `<=87`, `==12`, `cijfersom=7`/`sum=7` (digit sum),
+`deelbaardoor5`/`divided5` (divisible by), `tussen20-30`/`between20-30`, or the shorthand symbols
+`:5` (gedeeld door / divided by) and `x5` (tafel van / multiples of) — comma-separated or one at a
+time, and press Enter. Both Dutch and English keywords work side by side. Every
+rule narrows the grid of 1–100 down further; matching numbers light up. Click a rule chip to remove
+it, or click any number in the grid to cross it off as "already guessed." Narrow it down to exactly
+one and the pack celebrates. Your rules and crossed-off numbers **auto-save**.
 
 ## 4 · How it's made (the nerdy part)
 
 Hand-written HTML, CSS and vanilla JavaScript — no frameworks, no build step, no npm
 dependencies at runtime. [`index.html`](index.html) is the home screen / game picker;
 [`tidier.html`](tidier.html), [`sudoku.html`](sudoku.html), [`wordle.html`](wordle.html),
-[`salad.html`](salad.html) and [`cipherduel.html`](cipherduel.html) are the five games, each its
-own page. [`shared.css`](shared.css) and [`shared.js`](shared.js) hold the common look, sounds,
-sparkles and the husky pack so every page shares them instead of repeating the code.
+[`salad.html`](salad.html), [`cipherduel.html`](cipherduel.html) and
+[`getalfilter.html`](getalfilter.html) are the six games, each its own page.
+[`shared.css`](shared.css) and [`shared.js`](shared.js) hold the common look, sounds, sparkles and
+the husky pack so every page shares them instead of repeating the code.
 
 - 🎨 **All the art is code.** Every frame, pencil, mug, biscuit, spoon and husky is an
   inline **SVG drawn by JavaScript functions** — shapes, gradients and paths, zero image
@@ -128,8 +141,8 @@ sparkles and the husky pack so every page shares them instead of repeating the c
   [Dictionary API](https://dictionaryapi.dev/) (English only; it quietly lets a guess through
   if there's no internet to check it).
 - 💾 **Progress is saved with `localStorage`:** which Tidier levels are finished, Sudoku's
-  current puzzle/entries/difficulty, and Cipher Duel's secret/board/bot state — all survive
-  closing the app.
+  current puzzle/entries/difficulty, Cipher Duel's secret/board/bot state, and Getal Filter's
+  rules/crossed-off numbers — all survive closing the app.
 - 🖥️ **The desktop app is [Electron](https://www.electronjs.org/):** [`main.js`](main.js)
   opens a window and loads the game room into it. [`electron-builder`](https://www.electron.build/)
   packs it into a single portable exe. (See [`ELECTRON.md`](ELECTRON.md) for a crash course.)

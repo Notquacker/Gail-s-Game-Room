@@ -90,13 +90,23 @@ const icoCipher = `
     ${[0,1,2,3].map(i => `<rect x="${10 + i*13}" y="34" width="10" height="12" rx="3" fill="#e8a9b0" opacity=".85"/>`).join('')}
     ${heartPath(60, 12, 7, '#ecd28a')}
   </svg>`;
+const icoFilter = `
+  <svg width="72" height="64" viewBox="0 0 72 64">
+    <rect x="4" y="6" width="64" height="52" rx="8" fill="#fffdf6" stroke="rgba(92,74,61,.35)" stroke-width="2"/>
+    ${Array.from({length:15}).map((_,i) => {
+      const c = i % 5, r = Math.floor(i / 5);
+      const hit = [1,3,5,8,11].includes(i);
+      return `<rect x="${10 + c*11}" y="${13 + r*13}" width="9" height="9" rx="2.5" fill="${hit ? '#f0c4a0' : '#efe8d6'}" stroke="${hit ? '#d9a86a' : '#e0d5c2'}" stroke-width="1"/>`;
+    }).join('')}
+  </svg>`;
 
 const GAMES = [
-  { href:'tidier.html',    ico:icoTidier, nm:'A Little Tidier', tag:'drag things until they feel just right' },
-  { href:'sudoku.html',    ico:icoSudoku, nm:'Sudoku',          tag:'numbers, but make them cozy' },
-  { href:'wordle.html',    ico:icoWordle, nm:'Wordle',          tag:'guess the five-letter word' },
-  { href:'salad.html',     ico:icoSalad,  nm:'Word Salad',      tag:'find the words hiding in the grid' },
-  { href:'cipherduel.html',ico:icoCipher, nm:'Cipher Duel',     tag:'crack the code before Ice does' },
+  { href:'tidier.html',     ico:icoTidier, nm:'A Little Tidier', tag:'drag things until they feel just right' },
+  { href:'sudoku.html',     ico:icoSudoku, nm:'Sudoku',          tag:'numbers, but make them cozy' },
+  { href:'wordle.html',     ico:icoWordle, nm:'Wordle',          tag:'guess the five-letter word' },
+  { href:'salad.html',      ico:icoSalad,  nm:'Word Salad',      tag:'find the words hiding in the grid' },
+  { href:'cipherduel.html', ico:icoCipher, nm:'Cipher Duel',     tag:'crack the code before Ice does' },
+  { href:'getalfilter.html',ico:icoFilter, nm:'Getal Filter',    tag:'narrow 100 numbers down to the one' },
 ];
 
 const room = document.getElementById('room');
@@ -118,7 +128,7 @@ function showHome(){
   history.replaceState(null, '', location.pathname);
   room.innerHTML = bunting() + `
     <div class="bigtitle" style="font-size:52px;">Gail's Game Room</div>
-    <div class="sub">five cozy games, one happy pup pile ♥</div>
+    <div class="sub">six cozy games, one happy pup pile ♥</div>
     <button class="btn" id="enterBtn">come on in ✨</button>
     <div class="tiny">made with love (and three huskies)</div>`;
   addTwinkles(8);
