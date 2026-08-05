@@ -11,7 +11,7 @@
 | 🧩 **Sudoku** | freshly generated puzzles (always exactly one solution), three difficulties, hints, and your progress auto-saves |
 | 🟩 **Wordle** | guess the five-letter word in six tries — real English *and* Dutch words, checked against a live dictionary |
 | 🥗 **Word Salad** | find the hidden words — themed around the pack, love, and home |
-| 🔢 **Cipher Duel** | crack a hidden 4-digit code — play a pass-and-play duel with a friend, or go solo against **Ice**, who guesses back and remembers every wrong digit |
+| 🔢 **Cipher Duel** | crack a hidden 6-digit code — play a pass-and-play duel with a friend, or go solo against **Ice**, who guesses back and remembers every wrong digit |
 
 Open the game, land on a **home screen**, pick a game from the **game room** menu, and every
 game shares the same pastel look, pause menu, and husky supervision from the corner.
