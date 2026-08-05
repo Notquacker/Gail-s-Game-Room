@@ -7,11 +7,11 @@
 
 | Game | What it is |
 |---|---|
-| 🖼️ **A Little Tidier** | drag, straighten and sort things until they feel *just right* — 13 levels, 5 invented by Gail. Inspired by [*A Little to the Left*](https://alittletotheleft.com/), built 100% from scratch |
-| 🧩 **Sudoku** | freshly generated puzzles (always exactly one solution), three difficulties, hints, and your progress auto-saves |
-| 🟩 **Wordle** | guess the five-letter word in six tries — real English *and* Dutch words, checked against a live dictionary |
-| 🥗 **Word Salad** | find the hidden words — themed around the pack, love, and home |
-| 🔢 **Cipher Duel** | crack a hidden 6-digit code — play a pass-and-play duel with a friend, or go solo against **Ice**, who guesses back and remembers every wrong digit |
+|  **A Little Tidier** | drag, straighten and sort things until they feel *just right* — 13 levels, 5 invented by Gail. Inspired by [*A Little to the Left*](https://alittletotheleft.com/), built 100% from scratch |
+|  **Sudoku** | freshly generated puzzles (always exactly one solution), three difficulties, hints, and your progress auto-saves |
+|  **Wordle** | guess the five-letter word in six tries — real English *and* Dutch words, checked against a live dictionary |
+|  **Word Salad** | find the hidden words — themed around the pack, love, and home |
+|  **Cipher Duel** | crack a hidden 6-digit code — play a pass-and-play duel with a friend, or go solo against **Ice**, who guesses back and remembers every wrong digit |
 
 Open the game, land on a **home screen**, pick a game from the **game room** menu, and every
 game shares the same pastel look, pause menu, and husky supervision from the corner.
@@ -22,9 +22,9 @@ game shares the same pastel look, pause menu, and husky supervision from the cor
 
 | Way | How | Best for |
 |---|---|---|
-| 🌐 **Play in the browser** | Open **https://notquacker.github.io/a-little-tidier/** | Phones, tablets, any computer — always the newest version |
-| 🖥️ **Windows app** | **[⬇ Download the exe](https://github.com/Notquacker/a-little-tidier/releases/latest)** (under *Assets*) | Playing like a real desktop game |
-| 🛠️ **From source** | See [Building it yourself](#building-it-yourself) below | Developers / the curious |
+|  **Play in the browser** | Open **https://notquacker.github.io/a-little-tidier/** | Phones, tablets, any computer — always the newest version |
+|  **Windows app** | **[⬇ Download the exe](https://github.com/Notquacker/a-little-tidier/releases/latest)** (under *Assets*) | Playing like a real desktop game |
+|  **From source** | See [Building it yourself](#building-it-yourself) below | Developers / the curious |
 
 ## 2 · How to install
 
@@ -45,11 +45,11 @@ Every game has a **pause button** (⏸): resume, restart (the same puzzle/level,
 one), jump to **choose a game**, or go all the way **home**. Click **Archy, Ice or Chip** in
 the corner any time for an awooo 🐺 — they wag and blink on their own too.
 
-### 🖼️ A Little Tidier
+###  A Little Tidier
 
 **Goal:** every level shows something slightly untidy. Make it *just right*.
-When something is placed correctly it clicks into place with a chime and a sparkle ✨.
-Finish all of them and there might be a message waiting at the end… 💌
+When something is placed correctly it clicks into place with a chime and a sparkle .
+Finish all of them and there might be a message waiting at the end… 
 
 | Input | What it does |
 |---|---|
@@ -64,20 +64,20 @@ There's a **level menu** — finished levels get a pink heart, and progress is s
 1. **Straighten Up** — three crooked picture frames; make them hang straight
 2. **Hang Together** — hang the frames on one invisible line
 3. **Pencil Parade** — sort the pencils from shortest to tallest
-4. **Handle With Care** — set the wonky mugs down straight (one has a paw on it 🐾)
+4. **Handle With Care** — set the wonky mugs down straight (one has a paw on it )
 5. **Rainbow Shelf** — sort the books into rainbow order
 6. **Treat Time** — sort the dog biscuits from smallest to biggest, one per hungry baby
 7. **Drawer Order** — put every piece of cutlery on its matching outline
-8. **Build a Bouquet** — drop the flowers into the vase 💐
-9. **Closet Cleanup** — hang, fold and tuck everything away 👗
-10. **Puppy Puzzle** — rebuild the picture of the pup 🐶
-11. **Potion Time** — pour the colours into the cauldron in recipe order 🧪
-12. **Nail Salon** — paint every nail pink 💅
-13. **Love Letters** — spell a very important name ♥
+8. **Build a Bouquet** — drop the flowers into the vase 
+9. **Closet Cleanup** — hang, fold and tuck everything away 
+10. **Puppy Puzzle** — rebuild the picture of the pup 
+11. **Potion Time** — pour the colours into the cauldron in recipe order 
+12. **Nail Salon** — paint every nail pink 
+13. **Love Letters** — spell a very important name 
 
 *(Levels 8–12 were invented by Gail herself.)*
 
-### 🧩 Sudoku
+###  Sudoku
 
 Tap a cell, then a number on the pad (or your keyboard) to fill it in. Wrong numbers turn red
 if they clash with their row, column or box. Pick **easy / medium / hard** any time — re-picking
@@ -86,21 +86,21 @@ The **?** button fills in one correct number for you (your selected cell if it n
 otherwise a random one) — hinted numbers get a soft gold tint. Your board **auto-saves**, so
 closing the app or switching games and coming back resumes exactly where you left off.
 
-### 🟩 Wordle
+###  Wordle
 
 Type (or tap the on-screen keyboard) a 5-letter word and press **Enter**. Green = right letter,
 right spot; yellow = right letter, wrong spot. Real English words are checked live against a
 free dictionary; a curated set of Dutch words works too (see [`words.json`](words.json)) — anything
 else gets rejected with a little shake, without costing you a guess.
 
-### 🥗 Word Salad
+###  Word Salad
 
 Drag across letters — in any of 8 directions — to select a word from the themed word list
 below the grid. Found words get crossed off and highlighted in the grid.
 
-### 🔢 Cipher Duel
+###  Cipher Duel
 
-Enter your own 4-digit secret, then log guesses row by row for both players. Tap the little
+Enter your own 6-digit secret, then log guesses row by row for both players. Tap the little
 dot on a digit once its **position** is confirmed correct — later rows lock that digit in for
 you automatically. The 🐾 button switches to solo mode against **Ice**: she hides her own code
 for you to guess (correct digits lock in on their own), and her **Ice's turn** button makes her
@@ -116,27 +116,27 @@ dependencies at runtime. [`index.html`](index.html) is the home screen / game pi
 own page. [`shared.css`](shared.css) and [`shared.js`](shared.js) hold the common look, sounds,
 sparkles and the husky pack so every page shares them instead of repeating the code.
 
-- 🎨 **All the art is code.** Every frame, pencil, mug, biscuit, spoon and husky is an
+-  **All the art is code.** Every frame, pencil, mug, biscuit, spoon and husky is an
   inline **SVG drawn by JavaScript functions** — shapes, gradients and paths, zero image
   files. (The only bitmaps in the whole project are the app icon and its favicon.)
-- 🔊 **All the sound is code too.** The chimes, fanfares and the husky howl are
+-  **All the sound is code too.** The chimes, fanfares and the husky howl are
   generated live with the **WebAudio API** — oscillators, no audio files.
-- ✏️ **The font** is [Geist Pixel](https://fonts.google.com/specimen/Geist+Pixel) from Google
+-  **The font** is [Geist Pixel](https://fonts.google.com/specimen/Geist+Pixel) from Google
   Fonts, with system handwriting fonts as offline fallbacks.
-- 📖 **Wordle's word list** lives in [`words.json`](words.json) — a plain JSON array, loaded
+-  **Wordle's word list** lives in [`words.json`](words.json) — a plain JSON array, loaded
   with `fetch()` — and guesses outside that list are validated live against the free
   [Dictionary API](https://dictionaryapi.dev/) (English only; it quietly lets a guess through
   if there's no internet to check it).
-- 💾 **Progress is saved with `localStorage`:** which Tidier levels are finished, Sudoku's
+-  **Progress is saved with `localStorage`:** which Tidier levels are finished, Sudoku's
   current puzzle/entries/difficulty, and Cipher Duel's secret/board/bot state — all survive
   closing the app.
-- 🖥️ **The desktop app is [Electron](https://www.electronjs.org/):** [`main.js`](main.js)
+-  **The desktop app is [Electron](https://www.electronjs.org/):** [`main.js`](main.js)
   opens a window and loads the game room into it. [`electron-builder`](https://www.electron.build/)
   packs it into a single portable exe. (See [`ELECTRON.md`](ELECTRON.md) for a crash course.)
-- 🚀 **Updates are free via GitHub Pages:** this repo *is* the website. Every
+-  **Updates are free via GitHub Pages:** this repo *is* the website. Every
   `git push` puts new content online, and the app loads it on next launch.
   (See [`UPDATES.md`](UPDATES.md).)
-- 📋 The game design doc lives in [`PROMPT.md`](PROMPT.md).
+-  The game design doc lives in [`PROMPT.md`](PROMPT.md).
 
 Made in 2026 by **Xayvion**, together with Claude (Anthropic) — for Gail,
 supervised at all times by Archy, Ice and Chip.
