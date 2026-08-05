@@ -83,12 +83,20 @@ const icoSalad = `
     ${['P A W','W A G','P A W'].map((row, r) => row.split(' ').map((ch, c) =>
       `<text x="${21 + c*15}" y="${19 + r*15.5}" font-size="12" fill="#5c4a3d" text-anchor="middle" font-family="inherit">${'PWL AAO WGV'.split(' ')[r][c]}</text>`).join('')).join('')}
   </svg>`;
+const icoCipher = `
+  <svg width="72" height="64" viewBox="0 0 72 64">
+    <rect x="4" y="6" width="64" height="52" rx="8" fill="#fffdf6" stroke="rgba(92,74,61,.35)" stroke-width="2"/>
+    ${[0,1,2,3].map(i => `<rect x="${10 + i*13}" y="14" width="10" height="12" rx="3" fill="#a9c3e8" opacity=".85"/>`).join('')}
+    ${[0,1,2,3].map(i => `<rect x="${10 + i*13}" y="34" width="10" height="12" rx="3" fill="#e8a9b0" opacity=".85"/>`).join('')}
+    ${heartPath(60, 12, 7, '#ecd28a')}
+  </svg>`;
 
 const GAMES = [
-  { href:'tidier.html', ico:icoTidier, nm:'A Little Tidier', tag:'drag things until they feel just right' },
-  { href:'sudoku.html', ico:icoSudoku, nm:'Sudoku',          tag:'numbers, but make them cozy' },
-  { href:'wordle.html', ico:icoWordle, nm:'Wordle',          tag:'guess the five-letter word' },
-  { href:'salad.html',  ico:icoSalad,  nm:'Word Salad',      tag:'find the words hiding in the grid' },
+  { href:'tidier.html',    ico:icoTidier, nm:'A Little Tidier', tag:'drag things until they feel just right' },
+  { href:'sudoku.html',    ico:icoSudoku, nm:'Sudoku',          tag:'numbers, but make them cozy' },
+  { href:'wordle.html',    ico:icoWordle, nm:'Wordle',          tag:'guess the five-letter word' },
+  { href:'salad.html',     ico:icoSalad,  nm:'Word Salad',      tag:'find the words hiding in the grid' },
+  { href:'cipherduel.html',ico:icoCipher, nm:'Cipher Duel',     tag:'crack the code before Ice does' },
 ];
 
 const room = document.getElementById('room');
@@ -110,7 +118,7 @@ function showHome(){
   history.replaceState(null, '', location.pathname);
   room.innerHTML = bunting() + `
     <div class="bigtitle" style="font-size:52px;">Gail's Game Room</div>
-    <div class="sub">four cozy games, one happy pup pile ♥</div>
+    <div class="sub">five cozy games, one happy pup pile ♥</div>
     <button class="btn" id="enterBtn">come on in ✨</button>
     <div class="tiny">made with love (and three huskies)</div>`;
   addTwinkles(8);

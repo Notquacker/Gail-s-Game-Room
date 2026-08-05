@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Cipher Duel ♥ Gail's Game Room</title>
+<link rel="icon" type="image/png" href="build/icon.png">
+<meta name="theme-color" content="#f7f0e2">
+<link rel="stylesheet" href="shared.css">
+<style>
+  body{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:56px 10px 130px; }
+  #app{ width:min(94vw, 480px); display:flex; flex-direction:column; gap:12px; }
+
+  .panel{
+    background:var(--card); border:3px solid var(--ink); border-radius:16px;
+    padding:14px 16px; box-shadow:3px 4px 0 rgba(92,74,61,.2);
+  }
+  .panelLabel{ font-size:14px; letter-spacing:.03em; color:var(--ink-soft); margin-bottom:8px; }
+
+  .secretRow{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .secretDigits{ display:flex; gap:6px; }
+  .secretCell{
+    width:34px; height:44px; border-radius:9px; background:#fdf6e6;
+    border:2.5px solid var(--yellow); display:flex; align-items:center; justify-content:center;
+  }
+  .secretCell input{
+    width:100%; height:100%; background:transparent; border:none; outline:none;
+    text-align:center; font-family:inherit; font-size:19px; color:#b3901f;
+  }
+  .btnRow{ display:flex; gap:7px; }
+  .btn.small{ font-size:15px; padding:6px 16px; }
+  .btn.ghost{ color:var(--ink-soft); background:transparent; box-shadow:none; border-style:dashed; }
+
+  .segmented{ display:flex; gap:7px; margin-bottom:10px; }
+  .segBtn{
+    flex:1; font-family:inherit; font-size:15px; color:var(--ink-soft);
+    background:#fffdf6; border:2.5px solid var(--ink); border-radius:12px;
+    padding:8px 6px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .segBtn.on.you{ background:linear-gradient(180deg,#e7f0fb,#d6e6f7); color:var(--ink); }
+  .segBtn.on.enemy{ background:linear-gradient(180deg,#faeaea,#f6dcdc); color:var(--ink); }
+  .dotChip{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .dotChip.mine{ background:var(--blue); }
+  .dotChip.theirs{ background:var(--pink); }
+
+  .legend{ display:flex; flex-wrap:wrap; gap:12px; font-size:13px; color:var(--ink-soft); }
+  .legend span{ display:flex; align-items:center; gap:5px; }
+  .legend i{ width:10px; height:10px; border-radius:3px; display:inline-block; }
+  .legend i.g{ background:var(--green); }
+  .legend i.a{ border:2px solid var(--blue); }
+  .legend i.t{ border:2px solid var(--pink); }
+
+  .botBlock{ margin-top:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .botStatus{ font-size:13.5px; color:var(--ink-soft); flex:1; min-width:140px; }
+
+  .tableWrap{ overflow-x:auto; }
+  .theadRow, .rowLine{
+    display:grid; grid-template-columns:22px 1fr 1fr; gap:8px; align-items:center;
+  }
+  .theadRow{ padding:0 2px 8px; }
+  .colHeading{ font-size:13.5px; display:flex; align-items:center; gap:5px; }
+  .rowLine{ padding:4px 2px; border-top:1.5px solid #ecdfc4; }
+  .rowLine:first-of-type{ border-top:none; }
+  .rowNum{ color:var(--ink-soft); font-size:13px; text-align:right; }
+  .cellGroup{ display:flex; gap:4px; }
+
+  .digitCell{
+    position:relative; width:26px; height:26px; border-radius:7px;
+    background:#fffdf6; border:2px solid #e0d5c2; display:flex; align-items:center; justify-content:center;
+  }
+  .digitCell.tint-mine{ border-color:var(--blue); }
+  .digitCell.tint-theirs{ border-color:var(--pink); }
+  .digitCell.correct{ background:#e9f2e4; border-color:var(--green); }
+  .digitCell.locked{ opacity:.94; }
+  .digitInput{
+    width:100%; height:100%; background:transparent; border:none; outline:none;
+    text-align:center; font-family:inherit; font-size:14px; color:var(--ink);
+  }
+  .digitCell.correct .digitInput{ color:#4d7a3f; }
+  .digitInput:disabled{ color:#4d7a3f; opacity:1; }
+  .digitDot{
+    position:absolute; top:-3px; right:-3px; width:10px; height:10px; border-radius:50%;
+    border:1.5px solid var(--ink-soft); background:var(--card); padding:0; cursor:pointer;
+  }
+  .digitCell.correct .digitDot{ background:var(--green); border-color:var(--green); }
+
+  .solvedStrip{ margin-top:10px; font-size:13.5px; color:var(--ink-soft); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .solvedStrip b{ color:#4d7a3f; }
+
+  .footerActions{ display:flex; gap:8px; justify-content:flex-end; }
+
+  @media (max-width:380px){
+    .digitCell{ width:22px; height:22px; }
+    .cellGroup{ gap:3px; }
+    .digitInput{ font-size:12px; }
+    .secretCell{ width:28px; height:38px; }
+    .secretDigits{ gap:4px; }
+  }
+</style>
+</head>
+<body>
+
+<button class="roundBtn right" id="botBtn" title="duel Ice instead">🐾</button>
+<h1 class="bigtitle" style="font-size:34px;">Cipher Duel</h1>
+<div class="sub tiny" id="subtext" style="max-width:min(94vw,480px);"></div>
+
+<div id="app"></div>
+
+<script src="shared.js"></script>
+<script>
+const DIGIT_COUNT = 6;
+const ROW_COUNT = 10;
+const SAVE_KEY = 'cipherduel-save';
+
+function emptyRow(){
+  return {
+    mine: Array(DIGIT_COUNT).fill(''), mineCorrect: Array(DIGIT_COUNT).fill(false), mineLocked: Array(DIGIT_COUNT).fill(false),
+    theirs: Array(DIGIT_COUNT).fill(''), theirsManual: Array(DIGIT_COUNT).fill(false),
+  };
+}
+function randomCode(){ return Array.from({length:DIGIT_COUNT}, () => String(Math.floor(Math.random()*10))); }
+function sanitize(v){ return v.replace(/[^0-9]/g, '').slice(-1); }
+
+let secret = Array(DIGIT_COUNT).fill('');
+let turnOrder = 'you';                                   // 'you' | 'enemy'
+let rows = Array.from({length:ROW_COUNT}, emptyRow);
+let vsBot = false;
+let botSecret = Array(DIGIT_COUNT).fill('');
+let botKnown = Array(DIGIT_COUNT).fill(null);
+let botTried = Array.from({length:DIGIT_COUNT}, () => []);
+let botTurnsPlayed = 0;
+let botSolved = false;
+let wonAnnounced = false, botSolvedAnnounced = false;
+
+function secretComplete(){ return secret.every(d => d !== ''); }
+function cloneRows(src){
+  return src.map(r => ({
+    mine:[...r.mine], mineCorrect:[...r.mineCorrect], mineLocked:[...r.mineLocked],
+    theirs:[...r.theirs], theirsManual:[...r.theirsManual],
+  }));
+}
+
+/* ---------------- persistence ---------------- */
+function saveState(){
+  try{
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      secret, turnOrder, rows, vsBot, botSecret, botKnown, botTried, botTurnsPlayed, botSolved
+    }));
+  }catch(e){}
+}
+function loadSaved(){
+  try{ const raw = localStorage.getItem(SAVE_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+
+/* ---------------- actions ---------------- */
+function updateSecretDigit(i, val){
+  const v = sanitize(val);
+  secret[i] = v;
+  pendingFocus = v && i + 1 < DIGIT_COUNT ? `sec-${i+1}` : null;
+  if(v) tone(620, 0, .06, 'triangle', .05);
+  render();
+}
+function randomizeSecret(){ secret = randomCode(); render(); }
+function clearSecret(){ secret = Array(DIGIT_COUNT).fill(''); render(); }
+
+function resetBotBrain(){
+  botKnown = Array(DIGIT_COUNT).fill(null);
+  botTried = Array.from({length:DIGIT_COUNT}, () => []);
+  botTurnsPlayed = 0;
+  botSolved = false;
+  botSolvedAnnounced = false;
+}
+function resetBoard(){
+  rows = Array.from({length:ROW_COUNT}, emptyRow);
+  resetBotBrain();
+  wonAnnounced = false;
+  render();
+}
+function newGame(){
+  secret = Array(DIGIT_COUNT).fill('');
+  rows = Array.from({length:ROW_COUNT}, emptyRow);
+  resetBotBrain();
+  wonAnnounced = false;
+  if(vsBot) botSecret = randomCode();
+  render();
+}
+function toggleVsBot(){
+  vsBot = !vsBot;
+  rows = Array.from({length:ROW_COUNT}, emptyRow);
+  resetBotBrain();
+  wonAnnounced = false;
+  if(vsBot) botSecret = randomCode();
+  render();
+}
+function newBotSecret(){
+  botSecret = randomCode();
+  rows = Array.from({length:ROW_COUNT}, emptyRow);
+  resetBotBrain();
+  wonAnnounced = false;
+  render();
+}
+
+/* Ice plays adaptively: for each still-unknown position she guesses a digit
+   she hasn't tried yet. A hit resolves that position for every later row.
+   Once 9 digits fail for a spot, the 10th is deduced for free. One row per turn. */
+function playBotTurn(){
+  if(!secretComplete() || botSolved || botTurnsPlayed >= ROW_COUNT) return;
+  const guess = [];
+  for(let p = 0; p < DIGIT_COUNT; p++){
+    if(botKnown[p] !== null){ guess.push(botKnown[p]); continue; }
+    const candidates = '0123456789'.split('').filter(d => !botTried[p].includes(d));
+    const pick = candidates[Math.floor(Math.random()*candidates.length)];
+    guess.push(pick);
+    if(pick === secret[p]){
+      botKnown[p] = pick;
+    } else {
+      botTried[p].push(pick);
+      if(botTried[p].length === 9) botKnown[p] = '0123456789'.split('').find(d => !botTried[p].includes(d));
+    }
+  }
+  const rowIdx = botTurnsPlayed;
+  rows[rowIdx].theirs = guess;
+  botTurnsPlayed = rowIdx + 1;
+  if(guess.every((d,i) => d === secret[i])){ botSolved = true; }
+  render();
+}
+
+/* marks just this one cell green+locked — no propagation to other rows */
+function markCorrect(rowIdx, colIdx){
+  rows[rowIdx].mineCorrect[colIdx] = true;
+  rows[rowIdx].mineLocked[colIdx] = true;
+}
+
+/* ---------------- auto-advance focus (type a digit, jump to the next box) ---------------- */
+let pendingFocus = null;
+function cellLocked(kind, rowIdx, c){ return kind === 'mine' ? rows[rowIdx].mineLocked[c] : false; }
+function nextLocator(kind, rowIdx, fromCol){
+  for(let c = fromCol + 1; c < DIGIT_COUNT; c++){
+    if(!cellLocked(kind, rowIdx, c)) return kind === 'sec' ? `sec-${c}` : `${kind}-${rowIdx}-${c}`;
+  }
+  return null;
+}
+
+function updateMineDigit(rowIdx, colIdx, val){
+  if(rows[rowIdx].mineLocked[colIdx]) return;
+  const v = sanitize(val);
+  rows[rowIdx].mine[colIdx] = v;
+  pendingFocus = v ? nextLocator('mine', rowIdx, colIdx) : null;
+  if(v) tone(620, 0, .06, 'triangle', .05);
+  if(vsBot && v !== '' && v === botSecret[colIdx]){
+    markCorrect(rowIdx, colIdx);
+    ding();
+  }
+  render();
+}
+
+function toggleMineCorrect(rowIdx, colIdx){
+  if(vsBot) return;                                   // correctness vs Ice is automatic
+  const cell = rows[rowIdx];
+  if(cell.mine[colIdx] === '') return;
+  const turningOn = !cell.mineCorrect[colIdx];
+  if(turningOn){
+    markCorrect(rowIdx, colIdx);
+    ding();
+  } else {
+    cell.mineCorrect[colIdx] = false;
+    cell.mineLocked[colIdx] = false;
+  }
+  render();
+}
+
+function updateTheirDigit(rowIdx, colIdx, val){
+  const v = sanitize(val);
+  rows[rowIdx].theirs[colIdx] = v;
+  pendingFocus = v ? nextLocator('their', rowIdx, colIdx) : null;
+  if(v) tone(500, 0, .06, 'triangle', .04);
+  render();
+}
+function toggleTheirsManual(rowIdx, colIdx){
+  if(secretComplete()) return;
+  rows[rowIdx].theirsManual[colIdx] = !rows[rowIdx].theirsManual[colIdx];
+  render();
+}
+function isTheirsCorrect(row, colIdx){
+  if(secretComplete()) return row.theirs[colIdx] !== '' && row.theirs[colIdx] === secret[colIdx];
+  return row.theirsManual[colIdx];
+}
+
+function solvedInfo(){
+  const digits = Array(DIGIT_COUNT).fill(null);
+  for(let c = 0; c < DIGIT_COUNT; c++){
+    for(let r = 0; r < ROW_COUNT; r++){
+      if(rows[r].mineCorrect[c]){ digits[c] = rows[r].mine[c]; break; }
+    }
+  }
+  return { digits, count: digits.filter(d => d !== null).length };
+}
+
+/* ---------------- rendering ---------------- */
+const app = document.getElementById('app');
+const subtext = document.getElementById('subtext');
+const botBtn = document.getElementById('botBtn');
+
+function digitCellHTML(locator, value, tint, correct, locked, interactive){
+  return `
+    <div class="digitCell ${tint} ${correct ? 'correct' : ''} ${locked ? 'locked' : ''}">
+      <input class="digitInput" data-locator="${locator}" value="${value}" inputmode="numeric" maxlength="1" ${locked ? 'disabled' : ''}>
+      ${interactive ? `<button type="button" class="digitDot" data-locator-dot="${locator}" aria-label="mark correct"></button>` : ''}
+    </div>`;
+}
+
+function groupHTML(row, rowIdx, which){
+  if(which === 'mine'){
+    return `<div class="cellGroup">${row.mine.map((d,c) =>
+      digitCellHTML(`mine-${rowIdx}-${c}`, d, 'tint-mine', row.mineCorrect[c], row.mineLocked[c], !vsBot)).join('')}</div>`;
+  }
+  if(vsBot){
+    return `<div class="cellGroup">${row.theirs.map((d,c) =>
+      digitCellHTML(`their-${rowIdx}-${c}`, d, 'tint-theirs', isTheirsCorrect(row,c), true, false)).join('')}</div>`;
+  }
+  return `<div class="cellGroup">${row.theirs.map((d,c) =>
+    digitCellHTML(`their-${rowIdx}-${c}`, d, 'tint-theirs', isTheirsCorrect(row,c), false, !secretComplete())).join('')}</div>`;
+}
+
+function render(){
+  saveState();
+
+  const active = document.activeElement;
+  const activeLocator = (active && active.classList && active.classList.contains('digitInput')) ? active.dataset.locator : null;
+  const focusLocator = pendingFocus || activeLocator;
+  const restoreSel = (!pendingFocus && activeLocator) ? [active.selectionStart, active.selectionEnd] : null;
+  pendingFocus = null;
+
+  botBtn.classList.toggle('on', vsBot);
+  botBtn.style.background = vsBot ? 'linear-gradient(180deg,#e6f3e0,#d3e8c8)' : '';
+  subtext.innerHTML = vsBot
+    ? `Playing solo against <b>Ice</b> — she picked a hidden ${DIGIT_COUNT}-digit code. Type guesses into your
+       <span style="color:#5f86b8;">blue</span> column — a correct digit turns green right where you typed it.
+       Fill in your own secret below, then tap <b>🐾 Ice's turn</b> to let her guess back, one row at a time.`
+    : `Track a ${DIGIT_COUNT}-digit code-guessing duel with a friend. Enter your own secret, log both players'
+       guesses row by row, and tap the little dot on a digit once its <b>position</b> is confirmed —
+       it turns green right there.`;
+
+  const firstIsMine = turnOrder === 'you';
+  const { digits: solvedDigits, count: solvedCount } = solvedInfo();
+
+  app.innerHTML = `
+    <div class="panel">
+      <div class="panelLabel">Your secret code</div>
+      <div class="secretRow">
+        <div class="secretDigits">
+          ${secret.map((d,i) => `
+            <div class="secretCell">
+              <input data-locator="sec-${i}" value="${d}" inputmode="numeric" maxlength="1">
+            </div>`).join('')}
+        </div>
+        <div class="btnRow">
+          <button class="btn small" id="randBtn">🎲 random</button>
+          <button class="btn small ghost" id="clearBtn">clear</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panelLabel">Who guesses first?</div>
+      <div class="segmented">
+        <button class="segBtn you ${turnOrder === 'you' ? 'on you' : ''}" id="firstYouBtn">
+          <span class="dotChip mine"></span> you first
+        </button>
+        <button class="segBtn enemy ${turnOrder === 'enemy' ? 'on enemy' : ''}" id="firstEnemyBtn">
+          <span class="dotChip theirs"></span> ${vsBot ? 'Ice' : 'opponent'} first
+        </button>
+      </div>
+      <div class="legend">
+        <span><i class="g"></i> confirmed correct</span>
+        <span><i class="a"></i> your guesses</span>
+        <span><i class="t"></i> ${vsBot ? "Ice's guesses" : "opponent's guesses"}</span>
+      </div>
+      ${vsBot ? `
+        <div class="botBlock">
+          <button class="btn small" id="botTurnBtn" ${(!secretComplete() || botSolved || botTurnsPlayed >= ROW_COUNT) ? 'disabled' : ''}>
+            🐾 Ice's turn
+          </button>
+          <div class="botStatus">
+            ${botSolved ? `Ice cracked it in ${botTurnsPlayed} guess${botTurnsPlayed === 1 ? '' : 'es'}! 🐾`
+              : !secretComplete() ? 'Fill in your secret above so Ice can play'
+              : `Guess ${Math.min(botTurnsPlayed+1, ROW_COUNT)} of ${ROW_COUNT}`}
+          </div>
+          <button class="btn small ghost" id="newBotBtn">🔀 new hidden code</button>
+        </div>` : ''}
+    </div>
+
+    <div class="panel">
+      <div class="tableWrap">
+        <div class="theadRow">
+          <div></div>
+          ${firstIsMine ? `
+            <div class="colHeading"><span class="dotChip mine"></span>your guess</div>
+            <div class="colHeading">${vsBot ? '<span class="dotChip theirs"></span>Ice' : '<span class="dotChip theirs"></span>opponent'}</div>`
+          : `
+            <div class="colHeading">${vsBot ? '<span class="dotChip theirs"></span>Ice' : '<span class="dotChip theirs"></span>opponent'}</div>
+            <div class="colHeading"><span class="dotChip mine"></span>your guess</div>`}
+        </div>
+        ${rows.map((row, rowIdx) => `
+          <div class="rowLine">
+            <div class="rowNum">${rowIdx+1}</div>
+            ${firstIsMine ? groupHTML(row, rowIdx, 'mine') + groupHTML(row, rowIdx, 'theirs')
+                          : groupHTML(row, rowIdx, 'theirs') + groupHTML(row, rowIdx, 'mine')}
+          </div>`).join('')}
+      </div>
+      <div class="solvedStrip">
+        positions confirmed: <b>${solvedCount} / ${DIGIT_COUNT}</b>
+        ${solvedCount > 0 ? `<span>— ${solvedDigits.map(d => d === null ? '_' : d).join(' ')}</span>` : ''}
+      </div>
+    </div>
+
+    <div class="footerActions">
+      <button class="btn small ghost" id="resetBtn">reset guesses</button>
+      <button class="btn small" id="newGameBtn" style="color:#b3564f; border-color:#b3564f;">new game</button>
+    </div>
+  `;
+
+  wireInputs();
+  if(focusLocator){
+    const el = app.querySelector(`[data-locator="${focusLocator}"]`);
+    if(el && !el.disabled){
+      el.focus();
+      if(restoreSel) el.setSelectionRange(restoreSel[0], restoreSel[1]); else el.select();
+    }
+  }
+
+  celebrateIfNeeded(solvedCount);
+}
+
+function wireInputs(){
+  secret.forEach((_,i) => {
+    const el = app.querySelector(`[data-locator="sec-${i}"]`);
+    if(el) el.oninput = e => updateSecretDigit(i, e.target.value);
+  });
+  document.getElementById('randBtn').onclick = randomizeSecret;
+  document.getElementById('clearBtn').onclick = clearSecret;
+  document.getElementById('firstYouBtn').onclick = () => { turnOrder = 'you'; render(); };
+  document.getElementById('firstEnemyBtn').onclick = () => { turnOrder = 'enemy'; render(); };
+  document.getElementById('resetBtn').onclick = resetBoard;
+  document.getElementById('newGameBtn').onclick = newGame;
+
+  const botTurnBtn = document.getElementById('botTurnBtn');
+  if(botTurnBtn) botTurnBtn.onclick = playBotTurn;
+  const newBotBtn = document.getElementById('newBotBtn');
+  if(newBotBtn) newBotBtn.onclick = newBotSecret;
+
+  rows.forEach((row, r) => {
+    row.mine.forEach((_,c) => {
+      const inp = app.querySelector(`[data-locator="mine-${r}-${c}"]`);
+      if(inp) inp.oninput = e => updateMineDigit(r, c, e.target.value);
+      const dot = app.querySelector(`[data-locator-dot="mine-${r}-${c}"]`);
+      if(dot) dot.onclick = () => toggleMineCorrect(r, c);
+    });
+    row.theirs.forEach((_,c) => {
+      const inp = app.querySelector(`[data-locator="their-${r}-${c}"]`);
+      if(inp && !vsBot) inp.oninput = e => updateTheirDigit(r, c, e.target.value);
+      const dot = app.querySelector(`[data-locator-dot="their-${r}-${c}"]`);
+      if(dot) dot.onclick = () => toggleTheirsManual(r, c);
+    });
+  });
+}
+
+function celebrateIfNeeded(solvedCount){
+  if(solvedCount === DIGIT_COUNT && !wonAnnounced){
+    wonAnnounced = true;
+    fanfare(); awoo();
+    sparkEl(document.querySelector('.solvedStrip'), 22);
+    showBanner(vsBot ? "cracked Ice's code! so clever ♥" : 'cracked the code! so clever ♥', 2600);
+  }
+  if(vsBot && botSolved && !botSolvedAnnounced){
+    botSolvedAnnounced = true;
+    thud(); awoo();
+    showBanner('Ice sniffed out your code! 🐾', 2200);
+  }
+}
+
+botBtn.onclick = toggleVsBot;
+buildPack();
+setupPause(resetBoard);
+
+const saved = loadSaved();
+if(saved && Array.isArray(saved.secret) && saved.secret.length === DIGIT_COUNT
+   && Array.isArray(saved.rows) && saved.rows.length === ROW_COUNT
+   && Array.isArray(saved.rows[0]?.mine) && saved.rows[0].mine.length === DIGIT_COUNT){
+  secret = saved.secret; turnOrder = saved.turnOrder || 'you'; rows = saved.rows;
+  vsBot = !!saved.vsBot; botSecret = saved.botSecret || Array(DIGIT_COUNT).fill('');
+  botKnown = saved.botKnown || Array(DIGIT_COUNT).fill(null);
+  botTried = saved.botTried || Array.from({length:DIGIT_COUNT}, () => []);
+  botTurnsPlayed = saved.botTurnsPlayed || 0;
+  botSolved = !!saved.botSolved;
+  wonAnnounced = solvedInfo().count === DIGIT_COUNT;
+  botSolvedAnnounced = botSolved;
+  render();
+} else {
+  render();
+}
+</script>
+</body>
+</html>
