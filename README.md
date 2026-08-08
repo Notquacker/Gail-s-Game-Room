@@ -23,8 +23,8 @@ game shares the same pastel look, pause menu, and husky supervision from the cor
 
 | Way | How | Best for |
 |---|---|---|
-|  **Play in the browser** | Open **https://notquacker.github.io/a-little-tidier/** | Phones, tablets, any computer — always the newest version |
-|  **Windows app** | **[⬇ Download the exe](https://github.com/Notquacker/a-little-tidier/releases/latest)** (under *Assets*) | Playing like a real desktop game |
+|  **Play in the browser** | Open **https://notquacker.github.io/Gail-s-Game-Room/** | Phones, tablets, any computer — always the newest version |
+|  **Windows app** | **[⬇ Download the exe](https://github.com/Notquacker/Gail-s-Game-Room/releases/latest)** (under *Assets*) | Playing like a real desktop game |
 |  **From source** | See [Building it yourself](#building-it-yourself) below | Developers / the curious |
 
 ## 2 · How to install
@@ -161,8 +161,8 @@ supervised at all times by Archy, Ice and Chip.
 ## Building it yourself
 
 ```powershell
-git clone https://github.com/Notquacker/a-little-tidier.git
-cd a-little-tidier
+git clone https://github.com/Notquacker/Gail-s-Game-Room.git
+cd Gail-s-Game-Room
 npm install        # fetches Electron & tooling (one time)
 npm start          # play as a desktop app
 npm run dist       # build the portable exe into dist/

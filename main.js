@@ -20,9 +20,9 @@ const path = require('path');
 // every `git push` updates the game for Gail automatically —
 // the app loads the online version, and falls back to the copy
 // baked into the exe when she has no internet.
-// Example: 'https://YOURNAME.github.io/a-little-tidier/'
+// Example: 'https://YOURNAME.github.io/YOUR-REPO-NAME/'
 // ============================================================
-const REMOTE_URL = 'https://notquacker.github.io/a-little-tidier/';
+const REMOTE_URL = 'https://notquacker.github.io/Gail-s-Game-Room/';
 
 function createWindow () {
   const win = new BrowserWindow({
