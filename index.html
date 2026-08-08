@@ -90,7 +90,7 @@ const icoCipher = `
     ${[0,1,2,3].map(i => `<rect x="${10 + i*13}" y="34" width="10" height="12" rx="3" fill="#e8a9b0" opacity=".85"/>`).join('')}
     ${heartPath(60, 12, 7, '#ecd28a')}
   </svg>`;
-const icoFilter = `
+const icoLucky = `
   <svg width="72" height="64" viewBox="0 0 72 64">
     <rect x="4" y="6" width="64" height="52" rx="8" fill="#fffdf6" stroke="rgba(92,74,61,.35)" stroke-width="2"/>
     ${Array.from({length:15}).map((_,i) => {
@@ -101,12 +101,12 @@ const icoFilter = `
   </svg>`;
 
 const GAMES = [
-  { href:'tidier.html',     ico:icoTidier, nm:'A Little Tidier', tag:'drag things until they feel just right' },
-  { href:'sudoku.html',     ico:icoSudoku, nm:'Sudoku',          tag:'numbers, but make them cozy' },
-  { href:'wordle.html',     ico:icoWordle, nm:'Wordle',          tag:'guess the five-letter word' },
-  { href:'salad.html',      ico:icoSalad,  nm:'Word Salad',      tag:'find the words hiding in the grid' },
-  { href:'cipherduel.html', ico:icoCipher, nm:'Cipher Duel',     tag:'crack the code before Ice does' },
-  { href:'getalfilter.html',ico:icoFilter, nm:'Getal Filter',    tag:'narrow 100 numbers down to the one' },
+  { href:'tidier.html',      ico:icoTidier, nm:'A Little Tidier', tag:'drag things until they feel just right' },
+  { href:'sudoku.html',      ico:icoSudoku, nm:'Sudoku',          tag:'numbers, but make them cozy' },
+  { href:'wordle.html',      ico:icoWordle, nm:'Wordle',          tag:'guess the five-letter word' },
+  { href:'salad.html',       ico:icoSalad,  nm:'Word Salad',      tag:'find the words hiding in the grid' },
+  { href:'cipherduel.html',  ico:icoCipher, nm:'Cipher Duel',     tag:'crack the code before Ice does' },
+  { href:'luckynumber.html', ico:icoLucky,  nm:'Lucky Number',    tag:'narrow 100 (or 1000!) numbers down to the one' },
 ];
 
 const room = document.getElementById('room');

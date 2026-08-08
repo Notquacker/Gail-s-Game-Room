@@ -12,7 +12,7 @@
 |  **Wordle** | guess the five-letter word in six tries — real English *and* Dutch words, checked against a live dictionary |
 |  **Word Salad** | find the hidden words — themed around the pack, love, and home |
 |  **Cipher Duel** | crack a hidden 6-digit code — play a pass-and-play duel with a friend, or go solo against **Ice**, who guesses back and remembers every wrong digit |
-|  **Getal Filter** | type logic rules (`even`, `>40`, `cijfersom=7`, `tussen20-30`, …) to narrow a grid of 100 numbers down to one |
+|  **Lucky Number** | type logic rules (`even`, `>40`, `cijfersom<=7`, `tussen20-30`, `dubbelecijfers`, …) to narrow a grid of numbers down to one — play 1–100 or 1–1000 |
 
 Open the game, land on a **home screen**, pick a game from the **game room** menu, and every
 game shares the same pastel look, pause menu, and husky supervision from the corner.
@@ -109,13 +109,17 @@ you to guess, and her **Ice's turn** button makes her guess back at yours, one r
 remembers every wrong digit and deduces the last one for free once nine are ruled out. Your board
 **auto-saves**.
 
-###  Getal Filter
+###  Lucky Number
 
-Type logic rules — `even`, `oneven`/`odd`, `>40`, `<=87`, `==12`, `cijfersom=7`/`sum=7` (digit sum),
-`deelbaardoor5`/`divided5` (divisible by), `tussen20-30`/`between20-30`, or the shorthand symbols
-`:5` (gedeeld door / divided by) and `x5` (tafel van / multiples of) — comma-separated or one at a
-time, and press Enter. Both Dutch and English keywords work side by side. Every
-rule narrows the grid of 1–100 down further; matching numbers light up. Click a rule chip to remove
+Pick **1–100** or **1–1000** with the two buttons up top (switching modes starts a fresh grid).
+Type logic rules — `even`, `oneven`/`odd`, `>40`, `<=87`, `==12`, `dubbelecijfers`/`doubledigits`
+(a two-digit number), `deelbaardoor5`/`divided5` (divisible by), `tussen20-30`/`between20-30`, or
+the shorthand symbols `:5` (gedeeld door / divided by) and `x5` (tafel van / multiples of) —
+comma-separated or one at a time, and press Enter. Both Dutch and English keywords work side by
+side. The digit-sum rule (`cijfersom`/`sum`/`digitsum`) takes any comparison too — `cijfersom=7`,
+`cijfersom<=7`, `sum>=5` — or `cijfersom=even`/`cijfersom=oneven` to test the digit sum's own
+parity. Every
+rule narrows the grid down further; matching numbers light up. Click a rule chip to remove
 it, or click any number in the grid to cross it off as "already guessed." Narrow it down to exactly
 one and the pack celebrates. Your rules and crossed-off numbers **auto-save**.
 
@@ -125,7 +129,7 @@ Hand-written HTML, CSS and vanilla JavaScript — no frameworks, no build step, 
 dependencies at runtime. [`index.html`](index.html) is the home screen / game picker;
 [`tidier.html`](tidier.html), [`sudoku.html`](sudoku.html), [`wordle.html`](wordle.html),
 [`salad.html`](salad.html), [`cipherduel.html`](cipherduel.html) and
-[`getalfilter.html`](getalfilter.html) are the six games, each its own page.
+[`luckynumber.html`](luckynumber.html) are the six games, each its own page.
 [`shared.css`](shared.css) and [`shared.js`](shared.js) hold the common look, sounds, sparkles and
 the husky pack so every page shares them instead of repeating the code.
 
@@ -141,8 +145,8 @@ the husky pack so every page shares them instead of repeating the code.
   [Dictionary API](https://dictionaryapi.dev/) (English only; it quietly lets a guess through
   if there's no internet to check it).
 -  **Progress is saved with `localStorage`:** which Tidier levels are finished, Sudoku's
-  current puzzle/entries/difficulty, Cipher Duel's secret/board/bot state, and Getal Filter's
-  rules/crossed-off numbers — all survive closing the app.
+  current puzzle/entries/difficulty, Cipher Duel's secret/board/bot state, and Lucky Number's
+  range/rules/crossed-off numbers — all survive closing the app.
 -  **The desktop app is [Electron](https://www.electronjs.org/):** [`main.js`](main.js)
   opens a window and loads the game room into it. [`electron-builder`](https://www.electron.build/)
   packs it into a single portable exe. (See [`ELECTRON.md`](ELECTRON.md) for a crash course.)

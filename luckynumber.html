@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Getal Filter ♥ Gail's Game Room</title>
+<title>Lucky Number ♥ Gail's Game Room</title>
 <link rel="icon" type="image/png" href="build/icon.png">
 <meta name="theme-color" content="#f7f0e2">
 <link rel="stylesheet" href="shared.css">
@@ -39,12 +39,22 @@
     cursor:pointer; font-family:inherit; font-size:12.5px; padding:0; display:inline-block;
   }
 
+  .modeRow{ display:flex; gap:7px; margin-bottom:10px; }
+  .modeBtn{
+    flex:1; font-family:inherit; font-size:14px; color:var(--ink-soft);
+    background:#fffdf6; border:2.5px solid var(--ink); border-radius:12px;
+    padding:7px 6px; cursor:pointer;
+  }
+  .modeBtn.on{ background:linear-gradient(180deg,#f6d9b0,#f0c4a0); color:var(--ink); }
+
   .grid{ display:grid; grid-template-columns:repeat(10, 1fr); gap:4px; }
+  .grid.wide{ grid-template-columns:repeat(20, 1fr); gap:2px; }
   .numCell{
     aspect-ratio:1/1; display:flex; align-items:center; justify-content:center;
     border-radius:6px; font-size:12px; cursor:pointer; user-select:none;
     background:#fffdf6; border:1.5px solid #e0d5c2; color:var(--ink-soft);
   }
+  .grid.wide .numCell{ border-radius:3px; font-size:8px; border-width:1px; }
   .numCell.active{
     background:linear-gradient(180deg,#f6d9b0,#f0c4a0); border-color:#d9a86a; color:var(--ink); font-weight:700;
   }
@@ -54,14 +64,15 @@
 
   @media (max-width:380px){
     .numCell{ font-size:10.5px; }
+    .grid.wide .numCell{ font-size:6.5px; }
   }
 </style>
 </head>
 <body>
 
-<h1 class="bigtitle" style="font-size:34px;">Getal Filter</h1>
+<h1 class="bigtitle" style="font-size:34px;">Lucky Number</h1>
 <div class="sub tiny" id="subtext" style="max-width:min(94vw,480px); text-align:center;">
-  typ voorwaarden om de honderd getallen te versmallen tot dat ene ♥
+  typ voorwaarden om de getallen te versmallen tot dat ene ♥
 </div>
 
 <div id="app"></div>
@@ -93,11 +104,27 @@ function parseRule(raw){
     return { label:`${a}..${b}`, test:n => n >= Math.min(a,b) && n <= Math.max(a,b) };
   }
 
-  m = s.match(/^(cijfersom|digitsum|sum)=(\d+)$/);
+  // cijfersom/sum/digitsum now takes any comparison operator (>=, <=, =<, =>, ==, =, >, <)
+  // against a number, OR "=even"/"=odd" to test the digit sum's own parity.
+  m = s.match(/^(cijfersom|digitsum|sum)(>=|<=|=<|=>|==|=|>|<)(even|oneven|odd|\d+)$/);
   if(m){
-    const v = Number(m[2]);
-    return { label:`${m[1]}=${v}`, test:n => sumDigits(n) === v };
+    const word = m[1], rawOp = m[2], target = m[3];
+    const op = rawOp === '=<' ? '<=' : rawOp === '=>' ? '>=' : rawOp === '=' ? '==' : rawOp;
+
+    if(target === 'even' || target === 'oneven' || target === 'odd'){
+      if(op !== '==') return null;                  // parity only makes sense with equality
+      const wantOdd = target !== 'even';
+      return { label:`${word}${rawOp}${target}`, test:n => (sumDigits(n) % 2 !== 0) === wantOdd };
+    }
+
+    const v = Number(target);
+    const ops = { '>':x=>x>v, '<':x=>x<v, '>=':x=>x>=v, '<=':x=>x<=v, '==':x=>x===v };
+    return { label:`${word}${rawOp}${v}`, test:n => ops[op](sumDigits(n)) };
   }
+
+  // dubbele cijfers / double digits — a two-digit number (10-99)
+  if(s === 'dubbelecijfers' || s === 'dubbelcijfers' || s === 'doubledigits' || s === 'doubledigit')
+    return { label:'dubbele cijfers', test:n => n >= 10 && n <= 99 };
 
   m = s.match(/^(deelbaardoor|dividedby|divided)(\d+)$/);
   if(m){
@@ -122,9 +149,10 @@ function parseRule(raw){
     return { label:`x${v}`, test:n => n % v === 0 };
   }
 
-  m = s.match(/^(>=|<=|==|=|>|<)(\d+)$/);
+  m = s.match(/^(>=|<=|=<|=>|==|=|>|<)(\d+)$/);
   if(m){
-    const op = m[1] === '=' ? '==' : m[1];
+    const rawOp = m[1];
+    const op = rawOp === '=<' ? '<=' : rawOp === '=>' ? '>=' : rawOp === '=' ? '==' : rawOp;
     const v = Number(m[2]);
     const ops = { '>':n=>n>v, '<':n=>n<v, '>=':n=>n>=v, '<=':n=>n<=v, '==':n=>n===v };
     return { label:`${op}${v}`, test:ops[op] };
@@ -133,8 +161,12 @@ function parseRule(raw){
   return null;
 }
 
-const SAVE_KEY = 'getalfilter-save';
-const numbers = Array.from({length:100}, (_,i) => i+1);
+const SAVE_KEY = 'luckynumber-save';
+const LEGACY_SAVE_KEY = 'getalfilter-save';   // this game used to be called Getal Filter
+
+let rangeMax = 100;            // 100 or 1000
+let numbers = buildNumbers();
+function buildNumbers(){ return Array.from({length:rangeMax}, (_,i) => i+1); }
 
 let rules = [];               // { label, test }
 let error = '';
@@ -148,12 +180,15 @@ function isActive(n){ return rules.every(r => r.test(n)); }
 function saveState(){
   try{
     localStorage.setItem(SAVE_KEY, JSON.stringify({
-      ruleLabels: rules.map(r => r.label), guessed: [...guessed]
+      rangeMax, ruleLabels: rules.map(r => r.label), guessed: [...guessed]
     }));
   }catch(e){}
 }
 function loadSaved(){
-  try{ const raw = localStorage.getItem(SAVE_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+  try{
+    const raw = localStorage.getItem(SAVE_KEY) || localStorage.getItem(LEGACY_SAVE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
 }
 
 /* ---------------- actions ---------------- */
@@ -172,7 +207,7 @@ function submitRule(){
   if(newRules.length > 0){ rules = [...rules, ...newRules]; tone(680, 0, .07, 'triangle', .05); }
 
   if(bad.length > 0){
-    error = `Snap dit niet: ${bad.join(', ')}. Probeer bv: >40, <87, even, cijfersom=7, deelbaardoor5, tussen20-30, :5, x5`;
+    error = `Snap dit niet: ${bad.join(', ')}. Probeer bv: >40, <87, even, cijfersom<=7, cijfersom=even, deelbaardoor5, tussen20-30, dubbelecijfers, :5, x5`;
     thud();
   } else {
     error = '';
@@ -195,6 +230,13 @@ function resetAll(){
   rules = []; error = ''; guessed = new Set(); celebrated = false;
   render();
 }
+function setRange(max){
+  if(rangeMax === max) return;
+  rangeMax = max;
+  numbers = buildNumbers();
+  rules = []; error = ''; guessed = new Set(); celebrated = false;
+  render();
+}
 function toggleGuess(n){
   const next = new Set(guessed);
   if(next.has(n)) next.delete(n); else next.add(n);
@@ -211,16 +253,21 @@ function render(){
 
   app.innerHTML = `
     <div class="panel">
-      <div class="panelLabel">${remaining.length} van 100 getallen over</div>
+      <div class="modeRow">
+        <button class="modeBtn ${rangeMax === 100 ? 'on' : ''}" id="mode100Btn">1 – 100</button>
+        <button class="modeBtn ${rangeMax === 1000 ? 'on' : ''}" id="mode1000Btn">1 – 1000</button>
+      </div>
+      <div class="panelLabel">${remaining.length} van ${rangeMax} getallen over</div>
       <div class="ruleRow">
         <input type="text" id="ruleInput" class="ruleInput" placeholder="bv. even, <60, >10">
         <button class="btn addBtn" id="addBtn">voeg toe</button>
       </div>
       ${error ? `<p class="errorText">${error}</p>` : ''}
       <p class="hintText">
-        mogelijk: &gt;N, &lt;N, &gt;=N, &lt;=N, ==N, even, oneven, tussenA-B, cijfersom=N,
+        mogelijk: &gt;N, &lt;N, &gt;=N, &lt;=N, ==N, even, oneven, tussenA-B, dubbelecijfers,
         deelbaardoorN, :N (gedeeld door N), xN (tafel van N)<br>
-        english: odd, betweenA-B, sum=N / digitsum=N, dividedN / dividedbyN
+        cijfersom neemt ook &gt;, &lt;, &gt;=, &lt;= (bv. cijfersom&lt;=7) en cijfersom=even/oneven<br>
+        english: odd, betweenA-B, doubledigits, dividedN / dividedbyN, sum=N / sum&gt;=N / sum=even/odd
       </p>
       ${rules.length > 0 ? `
         <div class="chips">
@@ -233,7 +280,7 @@ function render(){
     </div>
 
     <div class="panel">
-      <div class="grid" id="grid">
+      <div class="grid ${rangeMax > 100 ? 'wide' : ''}" id="grid">
         ${numbers.map(n => {
           const active = isActive(n), isGuessed = guessed.has(n);
           return `<div class="numCell ${active ? 'active' : ''} ${isGuessed ? 'guessed' : ''}" data-n="${n}">${n}</div>`;
@@ -262,6 +309,9 @@ function render(){
 }
 
 function wireInputs(){
+  document.getElementById('mode100Btn').onclick = () => setRange(100);
+  document.getElementById('mode1000Btn').onclick = () => setRange(1000);
+
   document.getElementById('addBtn').onclick = submitRule;
   document.getElementById('ruleInput').onkeydown = e => { if(e.key === 'Enter') submitRule(); };
 
@@ -284,6 +334,8 @@ setupPause(resetAll);
 
 const saved = loadSaved();
 if(saved && Array.isArray(saved.ruleLabels)){
+  rangeMax = saved.rangeMax === 1000 ? 1000 : 100;
+  numbers = buildNumbers();
   rules = saved.ruleLabels.map(parseRule).filter(Boolean);
   guessed = new Set(Array.isArray(saved.guessed) ? saved.guessed : []);
 }
