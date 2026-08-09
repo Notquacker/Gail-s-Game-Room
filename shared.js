@@ -22,6 +22,17 @@ function shade(hex, f){                       // darken (f<1) / lighten (f>1) "#
 }
 const PALETTE = ["#e8a9b0", "#f0c4a0", "#ecd28a", "#adcaa2", "#a9c3e8", "#cbb3e0"];
 
+/* ---------- supabase (shared backend: history + realtime multiplayer) ----------
+   Requires <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+   loaded before this file. The anon key is safe to expose client-side. */
+const SUPABASE_URL = 'https://pqgdzvmysxxikecukrak.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxZ2R6dm15c3h4aWtlY3VrcmFrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzMDEzODcsImV4cCI6MjEwMTg3NzM4N30.YxF0HoUO_WIeSYFB_UH_VoX8-8sc10mafIzuFerLKr0';
+let __supabaseClient = null;
+function getSupabase(){
+  if(!__supabaseClient) __supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return __supabaseClient;
+}
+
 /* ---------- sound (WebAudio — generated, no files) ---------- */
 let AC = null;
 document.addEventListener('pointerdown', () => {

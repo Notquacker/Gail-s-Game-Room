@@ -53,6 +53,14 @@
   .botBlock{ margin-top:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .botStatus{ font-size:13.5px; color:var(--ink-soft); flex:1; min-width:140px; }
 
+  .ruleRow{ display:flex; gap:8px; }
+  .ruleInput{
+    flex:1; background:#fffdf6; border:2px solid #e0d5c2; border-radius:9px;
+    color:var(--ink); padding:9px 12px; font-family:inherit; font-size:15px; outline:none;
+  }
+  .ruleInput:focus{ border-color:var(--blue); }
+  .hintText{ margin:8px 0 0; font-size:11.5px; color:var(--ink-soft); line-height:1.6; }
+
   .tableWrap{ overflow-x:auto; }
   .theadRow, .rowLine{
     display:grid; grid-template-columns:22px 1fr 1fr; gap:8px; align-items:center;
@@ -78,11 +86,6 @@
   }
   .digitCell.correct .digitInput{ color:#4d7a3f; }
   .digitInput:disabled{ color:#4d7a3f; opacity:1; }
-  .digitDot{
-    position:absolute; top:-3px; right:-3px; width:10px; height:10px; border-radius:50%;
-    border:1.5px solid var(--ink-soft); background:var(--card); padding:0; cursor:pointer;
-  }
-  .digitCell.correct .digitDot{ background:var(--green); border-color:var(--green); }
 
   .solvedStrip{ margin-top:10px; font-size:13.5px; color:var(--ink-soft); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .solvedStrip b{ color:#4d7a3f; }
@@ -106,6 +109,7 @@
 
 <div id="app"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="shared.js"></script>
 <script>
 const DIGIT_COUNT = 6;
@@ -115,14 +119,14 @@ const SAVE_KEY = 'cipherduel-save';
 function emptyRow(){
   return {
     mine: Array(DIGIT_COUNT).fill(''), mineCorrect: Array(DIGIT_COUNT).fill(false), mineLocked: Array(DIGIT_COUNT).fill(false),
-    theirs: Array(DIGIT_COUNT).fill(''), theirsManual: Array(DIGIT_COUNT).fill(false),
+    mineSubmitted: false, theirs: Array(DIGIT_COUNT).fill(''),
   };
 }
 function randomCode(){ return Array.from({length:DIGIT_COUNT}, () => String(Math.floor(Math.random()*10))); }
 function sanitize(v){ return v.replace(/[^0-9]/g, '').slice(-1); }
 
 let secret = Array(DIGIT_COUNT).fill('');
-let turnOrder = 'you';                                   // 'you' | 'enemy'
+let turnOrder = 'you';                                   // 'you' | 'enemy' — bot mode only
 let rows = Array.from({length:ROW_COUNT}, emptyRow);
 let vsBot = false;
 let botSecret = Array(DIGIT_COUNT).fill('');
@@ -130,15 +134,20 @@ let botKnown = Array(DIGIT_COUNT).fill(null);
 let botTried = Array.from({length:DIGIT_COUNT}, () => []);
 let botTurnsPlayed = 0;
 let botSolved = false;
-let wonAnnounced = false, botSolvedAnnounced = false;
+let wonAnnounced = false, lostAnnounced = false;
+
+/* online duel — a shared Supabase Realtime channel per room code.
+   Guesses go out as broadcasts; whoever holds the matching secret checks
+   them locally and broadcasts back which positions are correct, so the
+   secret itself never has to leave the device that owns it. */
+let room = {
+  code: '', status: 'idle',        // idle | connecting | connected
+  channel: null, myId: (crypto.randomUUID ? crypto.randomUUID() : uid('player')),
+  opponentPresent: false, opponentReady: false,
+  iCracked: false, theyCracked: false,
+};
 
 function secretComplete(){ return secret.every(d => d !== ''); }
-function cloneRows(src){
-  return src.map(r => ({
-    mine:[...r.mine], mineCorrect:[...r.mineCorrect], mineLocked:[...r.mineLocked],
-    theirs:[...r.theirs], theirsManual:[...r.theirsManual],
-  }));
-}
 
 /* ---------------- persistence ---------------- */
 function saveState(){
@@ -158,45 +167,126 @@ function updateSecretDigit(i, val){
   secret[i] = v;
   pendingFocus = v && i + 1 < DIGIT_COUNT ? `sec-${i+1}` : null;
   if(v) tone(620, 0, .06, 'triangle', .05);
+  updatePresenceReady();
   render();
 }
-function randomizeSecret(){ secret = randomCode(); render(); }
-function clearSecret(){ secret = Array(DIGIT_COUNT).fill(''); render(); }
+function randomizeSecret(){ secret = randomCode(); updatePresenceReady(); render(); }
+function clearSecret(){ secret = Array(DIGIT_COUNT).fill(''); updatePresenceReady(); render(); }
 
-function resetBotBrain(){
+function resetMatchState(){
   botKnown = Array(DIGIT_COUNT).fill(null);
   botTried = Array.from({length:DIGIT_COUNT}, () => []);
   botTurnsPlayed = 0;
   botSolved = false;
-  botSolvedAnnounced = false;
+  lostAnnounced = false;
+  room.iCracked = false;
+  room.theyCracked = false;
 }
 function resetBoard(){
   rows = Array.from({length:ROW_COUNT}, emptyRow);
-  resetBotBrain();
+  resetMatchState();
   wonAnnounced = false;
   render();
 }
 function newGame(){
   secret = Array(DIGIT_COUNT).fill('');
   rows = Array.from({length:ROW_COUNT}, emptyRow);
-  resetBotBrain();
+  resetMatchState();
   wonAnnounced = false;
   if(vsBot) botSecret = randomCode();
+  updatePresenceReady();
   render();
 }
 function toggleVsBot(){
-  vsBot = !vsBot;
+  if(vsBot){
+    vsBot = false;
+  } else {
+    leaveRoom(false);
+    vsBot = true;
+    botSecret = randomCode();
+  }
   rows = Array.from({length:ROW_COUNT}, emptyRow);
-  resetBotBrain();
+  resetMatchState();
   wonAnnounced = false;
-  if(vsBot) botSecret = randomCode();
   render();
 }
 function newBotSecret(){
   botSecret = randomCode();
   rows = Array.from({length:ROW_COUNT}, emptyRow);
-  resetBotBrain();
+  resetMatchState();
   wonAnnounced = false;
+  render();
+}
+
+/* ---------------- online room ---------------- */
+function updatePresenceReady(){
+  if(!vsBot && room.channel && room.status === 'connected'){
+    room.channel.track({ ready: secretComplete() });
+  }
+}
+function connectRoom(code){
+  if(!code) return;
+  if(room.channel) leaveRoom(false);
+  room.code = code;
+  room.status = 'connecting';
+  rows = Array.from({length:ROW_COUNT}, emptyRow);
+  resetMatchState();
+  wonAnnounced = false;
+  render();
+
+  const channel = getSupabase().channel(`cipherduel:${code}`, {
+    config: { broadcast: { self:false }, presence: { key: room.myId } }
+  });
+
+  channel
+    .on('broadcast', { event:'guess' }, ({ payload }) => handleIncomingGuess(payload))
+    .on('broadcast', { event:'result' }, ({ payload }) => handleIncomingResult(payload))
+    .on('presence', { event:'sync' }, () => {
+      const state = channel.presenceState();
+      const others = Object.keys(state).filter(k => k !== room.myId);
+      room.opponentPresent = others.length > 0;
+      room.opponentReady = others.some(k => state[k].some(p => p.ready));
+      render();
+    })
+    .subscribe(status => {
+      if(status === 'SUBSCRIBED'){
+        room.status = 'connected';
+        channel.track({ ready: secretComplete() });
+        render();
+      } else if(status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED'){
+        room.status = 'idle';
+        render();
+      }
+    });
+
+  room.channel = channel;
+}
+function leaveRoom(rerender = true){
+  if(room.channel){ getSupabase().removeChannel(room.channel); room.channel = null; }
+  room.status = 'idle'; room.code = ''; room.opponentPresent = false; room.opponentReady = false;
+  if(rerender) render();
+}
+/* opponent's guess at MY code — check it locally and broadcast the verdict back */
+function handleIncomingGuess({ rowIndex, digits }){
+  if(rowIndex == null || rowIndex >= ROW_COUNT) return;
+  rows[rowIndex].theirs = digits;
+  const correct = digits.map((d,c) => secret[c] !== '' && d === secret[c]);
+  room.channel?.send({ type:'broadcast', event:'result', payload:{ rowIndex, correct } });
+  if(correct.every(Boolean)) room.theyCracked = true;
+  render();
+}
+/* the verdict on MY guess at THEIR code */
+function handleIncomingResult({ rowIndex, correct }){
+  const row = rows[rowIndex];
+  if(!row) return;
+  correct.forEach((ok,c) => { if(ok) markCorrect(rowIndex, c); });
+  if(correct.every(Boolean)) room.iCracked = true;
+  render();
+}
+function submitOnlineGuess(rowIdx){
+  const row = rows[rowIdx];
+  row.mineSubmitted = true;
+  room.channel?.send({ type:'broadcast', event:'guess', payload:{ rowIndex: rowIdx, digits:[...row.mine] } });
   render();
 }
 
@@ -233,7 +323,7 @@ function markCorrect(rowIdx, colIdx){
 
 /* ---------------- auto-advance focus (type a digit, jump to the next box) ---------------- */
 let pendingFocus = null;
-function cellLocked(kind, rowIdx, c){ return kind === 'mine' ? rows[rowIdx].mineLocked[c] : false; }
+function cellLocked(kind, rowIdx, c){ return kind === 'mine' ? (rows[rowIdx].mineLocked[c] || rows[rowIdx].mineSubmitted) : false; }
 function nextLocator(kind, rowIdx, fromCol){
   for(let c = fromCol + 1; c < DIGIT_COUNT; c++){
     if(!cellLocked(kind, rowIdx, c)) return kind === 'sec' ? `sec-${c}` : `${kind}-${rowIdx}-${c}`;
@@ -242,48 +332,25 @@ function nextLocator(kind, rowIdx, fromCol){
 }
 
 function updateMineDigit(rowIdx, colIdx, val){
-  if(rows[rowIdx].mineLocked[colIdx]) return;
+  const row = rows[rowIdx];
+  if(row.mineLocked[colIdx] || row.mineSubmitted) return;
   const v = sanitize(val);
-  rows[rowIdx].mine[colIdx] = v;
+  row.mine[colIdx] = v;
   pendingFocus = v ? nextLocator('mine', rowIdx, colIdx) : null;
   if(v) tone(620, 0, .06, 'triangle', .05);
   if(vsBot && v !== '' && v === botSecret[colIdx]){
     markCorrect(rowIdx, colIdx);
     ding();
   }
-  render();
-}
-
-function toggleMineCorrect(rowIdx, colIdx){
-  if(vsBot) return;                                   // correctness vs Ice is automatic
-  const cell = rows[rowIdx];
-  if(cell.mine[colIdx] === '') return;
-  const turningOn = !cell.mineCorrect[colIdx];
-  if(turningOn){
-    markCorrect(rowIdx, colIdx);
-    ding();
-  } else {
-    cell.mineCorrect[colIdx] = false;
-    cell.mineLocked[colIdx] = false;
+  if(!vsBot && room.status === 'connected' && row.mine.every(d => d !== '')){
+    submitOnlineGuess(rowIdx);
+    return;                                             // submitOnlineGuess already re-renders
   }
   render();
 }
 
-function updateTheirDigit(rowIdx, colIdx, val){
-  const v = sanitize(val);
-  rows[rowIdx].theirs[colIdx] = v;
-  pendingFocus = v ? nextLocator('their', rowIdx, colIdx) : null;
-  if(v) tone(500, 0, .06, 'triangle', .04);
-  render();
-}
-function toggleTheirsManual(rowIdx, colIdx){
-  if(secretComplete()) return;
-  rows[rowIdx].theirsManual[colIdx] = !rows[rowIdx].theirsManual[colIdx];
-  render();
-}
 function isTheirsCorrect(row, colIdx){
-  if(secretComplete()) return row.theirs[colIdx] !== '' && row.theirs[colIdx] === secret[colIdx];
-  return row.theirsManual[colIdx];
+  return row.theirs[colIdx] !== '' && secretComplete() && row.theirs[colIdx] === secret[colIdx];
 }
 
 function solvedInfo(){
@@ -301,25 +368,21 @@ const app = document.getElementById('app');
 const subtext = document.getElementById('subtext');
 const botBtn = document.getElementById('botBtn');
 
-function digitCellHTML(locator, value, tint, correct, locked, interactive){
+function digitCellHTML(locator, value, tint, correct, locked){
   return `
     <div class="digitCell ${tint} ${correct ? 'correct' : ''} ${locked ? 'locked' : ''}">
       <input class="digitInput" data-locator="${locator}" value="${value}" inputmode="numeric" maxlength="1" ${locked ? 'disabled' : ''}>
-      ${interactive ? `<button type="button" class="digitDot" data-locator-dot="${locator}" aria-label="mark correct"></button>` : ''}
     </div>`;
 }
 
 function groupHTML(row, rowIdx, which){
   if(which === 'mine'){
+    const guessesOpen = vsBot || (room.status === 'connected' && room.opponentReady && secretComplete());
     return `<div class="cellGroup">${row.mine.map((d,c) =>
-      digitCellHTML(`mine-${rowIdx}-${c}`, d, 'tint-mine', row.mineCorrect[c], row.mineLocked[c], !vsBot)).join('')}</div>`;
-  }
-  if(vsBot){
-    return `<div class="cellGroup">${row.theirs.map((d,c) =>
-      digitCellHTML(`their-${rowIdx}-${c}`, d, 'tint-theirs', isTheirsCorrect(row,c), true, false)).join('')}</div>`;
+      digitCellHTML(`mine-${rowIdx}-${c}`, d, 'tint-mine', row.mineCorrect[c], row.mineLocked[c] || row.mineSubmitted || !guessesOpen)).join('')}</div>`;
   }
   return `<div class="cellGroup">${row.theirs.map((d,c) =>
-    digitCellHTML(`their-${rowIdx}-${c}`, d, 'tint-theirs', isTheirsCorrect(row,c), false, !secretComplete())).join('')}</div>`;
+    digitCellHTML(`their-${rowIdx}-${c}`, d, 'tint-theirs', isTheirsCorrect(row,c), true)).join('')}</div>`;
 }
 
 function render(){
@@ -337,11 +400,13 @@ function render(){
     ? `Playing solo against <b>Ice</b> — she picked a hidden ${DIGIT_COUNT}-digit code. Type guesses into your
        <span style="color:#5f86b8;">blue</span> column — a correct digit turns green right where you typed it.
        Fill in your own secret below, then tap <b>🐾 Ice's turn</b> to let her guess back, one row at a time.`
-    : `Track a ${DIGIT_COUNT}-digit code-guessing duel with a friend. Enter your own secret, log both players'
-       guesses row by row, and tap the little dot on a digit once its <b>position</b> is confirmed —
-       it turns green right there.`;
+    : room.status === 'connected'
+    ? `Duel in room <b>${room.code}</b>. Type your guesses into your <span style="color:#5f86b8;">blue</span> column —
+       a digit turns green the moment your partner confirms it's in the right spot.`
+    : `Play a live duel with someone on another device. Agree on a room code with them, both type it in below, and
+       tap <b>join room</b>.`;
 
-  const firstIsMine = turnOrder === 'you';
+  const firstIsMine = vsBot ? turnOrder === 'you' : true;
   const { digits: solvedDigits, count: solvedCount } = solvedInfo();
 
   app.innerHTML = `
@@ -362,19 +427,43 @@ function render(){
     </div>
 
     <div class="panel">
-      <div class="panelLabel">Who guesses first?</div>
-      <div class="segmented">
-        <button class="segBtn you ${turnOrder === 'you' ? 'on you' : ''}" id="firstYouBtn">
-          <span class="dotChip mine"></span> you first
-        </button>
-        <button class="segBtn enemy ${turnOrder === 'enemy' ? 'on enemy' : ''}" id="firstEnemyBtn">
-          <span class="dotChip theirs"></span> ${vsBot ? 'Ice' : 'opponent'} first
-        </button>
-      </div>
+      ${vsBot ? `
+        <div class="panelLabel">Who guesses first?</div>
+        <div class="segmented">
+          <button class="segBtn you ${turnOrder === 'you' ? 'on you' : ''}" id="firstYouBtn">
+            <span class="dotChip mine"></span> you first
+          </button>
+          <button class="segBtn enemy ${turnOrder === 'enemy' ? 'on enemy' : ''}" id="firstEnemyBtn">
+            <span class="dotChip theirs"></span> Ice first
+          </button>
+        </div>
+      ` : `
+        <div class="panelLabel">Play online</div>
+        ${room.status === 'connected' ? `
+          <div class="botBlock">
+            <div class="botStatus">
+              room <b>${room.code}</b> —
+              ${!room.opponentPresent ? 'waiting for your partner to join…'
+                : !secretComplete() ? 'set your secret above so the duel can start'
+                : !room.opponentReady ? "waiting for your partner to lock in their secret…"
+                : 'duel is on! ♥'}
+            </div>
+            <button class="btn small ghost" id="leaveRoomBtn">leave room</button>
+          </div>
+        ` : `
+          <div class="ruleRow">
+            <input type="text" id="roomInput" class="ruleInput" placeholder="room code">
+            <button class="btn small" id="joinRoomBtn" ${room.status === 'connecting' ? 'disabled' : ''}>
+              ${room.status === 'connecting' ? 'connecting…' : 'join room'}
+            </button>
+          </div>
+          <p class="hintText">agree on any word with your partner, then both type it here and tap join.</p>
+        `}
+      `}
       <div class="legend">
         <span><i class="g"></i> confirmed correct</span>
         <span><i class="a"></i> your guesses</span>
-        <span><i class="t"></i> ${vsBot ? "Ice's guesses" : "opponent's guesses"}</span>
+        <span><i class="t"></i> ${vsBot ? "Ice's guesses" : "their guesses"}</span>
       </div>
       ${vsBot ? `
         <div class="botBlock">
@@ -439,28 +528,29 @@ function wireInputs(){
   });
   document.getElementById('randBtn').onclick = randomizeSecret;
   document.getElementById('clearBtn').onclick = clearSecret;
-  document.getElementById('firstYouBtn').onclick = () => { turnOrder = 'you'; render(); };
-  document.getElementById('firstEnemyBtn').onclick = () => { turnOrder = 'enemy'; render(); };
   document.getElementById('resetBtn').onclick = resetBoard;
   document.getElementById('newGameBtn').onclick = newGame;
 
-  const botTurnBtn = document.getElementById('botTurnBtn');
-  if(botTurnBtn) botTurnBtn.onclick = playBotTurn;
-  const newBotBtn = document.getElementById('newBotBtn');
-  if(newBotBtn) newBotBtn.onclick = newBotSecret;
+  if(vsBot){
+    document.getElementById('firstYouBtn').onclick = () => { turnOrder = 'you'; render(); };
+    document.getElementById('firstEnemyBtn').onclick = () => { turnOrder = 'enemy'; render(); };
+    const botTurnBtn = document.getElementById('botTurnBtn');
+    if(botTurnBtn) botTurnBtn.onclick = playBotTurn;
+    const newBotBtn = document.getElementById('newBotBtn');
+    if(newBotBtn) newBotBtn.onclick = newBotSecret;
+  } else if(room.status === 'connected'){
+    document.getElementById('leaveRoomBtn').onclick = () => leaveRoom();
+  } else {
+    const roomInput = document.getElementById('roomInput');
+    const join = () => { const code = roomInput.value.trim(); if(code) connectRoom(code); };
+    document.getElementById('joinRoomBtn').onclick = join;
+    roomInput.onkeydown = e => { if(e.key === 'Enter') join(); };
+  }
 
   rows.forEach((row, r) => {
     row.mine.forEach((_,c) => {
       const inp = app.querySelector(`[data-locator="mine-${r}-${c}"]`);
       if(inp) inp.oninput = e => updateMineDigit(r, c, e.target.value);
-      const dot = app.querySelector(`[data-locator-dot="mine-${r}-${c}"]`);
-      if(dot) dot.onclick = () => toggleMineCorrect(r, c);
-    });
-    row.theirs.forEach((_,c) => {
-      const inp = app.querySelector(`[data-locator="their-${r}-${c}"]`);
-      if(inp && !vsBot) inp.oninput = e => updateTheirDigit(r, c, e.target.value);
-      const dot = app.querySelector(`[data-locator-dot="their-${r}-${c}"]`);
-      if(dot) dot.onclick = () => toggleTheirsManual(r, c);
     });
   });
 }
@@ -470,12 +560,17 @@ function celebrateIfNeeded(solvedCount){
     wonAnnounced = true;
     fanfare(); awoo();
     sparkEl(document.querySelector('.solvedStrip'), 22);
-    showBanner(vsBot ? "cracked Ice's code! so clever ♥" : 'cracked the code! so clever ♥', 2600);
+    showBanner(vsBot ? "cracked Ice's code! so clever ♥" : 'cracked their code! so clever ♥', 2600);
   }
-  if(vsBot && botSolved && !botSolvedAnnounced){
-    botSolvedAnnounced = true;
+  if(vsBot && botSolved && !lostAnnounced){
+    lostAnnounced = true;
     thud(); awoo();
     showBanner('Ice sniffed out your code! 🐾', 2200);
+  }
+  if(!vsBot && room.theyCracked && !lostAnnounced){
+    lostAnnounced = true;
+    thud(); awoo();
+    showBanner('your partner cracked your code! 💔', 2200);
   }
 }
 
@@ -488,13 +583,14 @@ if(saved && Array.isArray(saved.secret) && saved.secret.length === DIGIT_COUNT
    && Array.isArray(saved.rows) && saved.rows.length === ROW_COUNT
    && Array.isArray(saved.rows[0]?.mine) && saved.rows[0].mine.length === DIGIT_COUNT){
   secret = saved.secret; turnOrder = saved.turnOrder || 'you'; rows = saved.rows;
+  rows.forEach(r => { if(r.mineSubmitted === undefined) r.mineSubmitted = false; });
   vsBot = !!saved.vsBot; botSecret = saved.botSecret || Array(DIGIT_COUNT).fill('');
   botKnown = saved.botKnown || Array(DIGIT_COUNT).fill(null);
   botTried = saved.botTried || Array.from({length:DIGIT_COUNT}, () => []);
   botTurnsPlayed = saved.botTurnsPlayed || 0;
   botSolved = !!saved.botSolved;
   wonAnnounced = solvedInfo().count === DIGIT_COUNT;
-  botSolvedAnnounced = botSolved;
+  lostAnnounced = botSolved;
   render();
 } else {
   render();
