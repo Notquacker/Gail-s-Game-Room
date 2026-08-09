@@ -139,11 +139,17 @@ let wonAnnounced = false, lostAnnounced = false;
 /* online duel — a shared Supabase Realtime channel per room code.
    Guesses go out as broadcasts; whoever holds the matching secret checks
    them locally and broadcasts back which positions are correct, so the
-   secret itself never has to leave the device that owns it. */
+   secret itself never has to leave the device that owns it. Once both
+   sides lock in, whichever client has the lexicographically smaller id
+   flips the coin for who goes first and broadcasts the result — that
+   keeps both clients agreeing on one outcome without a real coin flip
+   race. From then on the 'turn' just flips with every guess/result. */
+let mySecretLocked = false;
 let room = {
   code: '', status: 'idle',        // idle | connecting | connected
   channel: null, myId: (crypto.randomUUID ? crypto.randomUUID() : uid('player')),
-  opponentPresent: false, opponentReady: false,
+  opponentPresent: false, opponentLocked: false, opponentId: null,
+  turn: null, startSent: false,    // turn: null (not started) | 'me' | 'them'
   iCracked: false, theyCracked: false,
 };
 
@@ -163,15 +169,23 @@ function loadSaved(){
 
 /* ---------------- actions ---------------- */
 function updateSecretDigit(i, val){
+  if(mySecretLocked) return;
   const v = sanitize(val);
   secret[i] = v;
   pendingFocus = v && i + 1 < DIGIT_COUNT ? `sec-${i+1}` : null;
   if(v) tone(620, 0, .06, 'triangle', .05);
-  updatePresenceReady();
   render();
 }
-function randomizeSecret(){ secret = randomCode(); updatePresenceReady(); render(); }
-function clearSecret(){ secret = Array(DIGIT_COUNT).fill(''); updatePresenceReady(); render(); }
+function randomizeSecret(){ if(mySecretLocked) return; secret = randomCode(); render(); }
+function clearSecret(){ if(mySecretLocked) return; secret = Array(DIGIT_COUNT).fill(''); render(); }
+function lockSecret(){
+  if(vsBot || mySecretLocked || !secretComplete()) return;
+  mySecretLocked = true;
+  ding();
+  updatePresenceReady();
+  maybeStartMatch();
+  render();
+}
 
 function resetMatchState(){
   botKnown = Array(DIGIT_COUNT).fill(null);
@@ -193,8 +207,13 @@ function newGame(){
   rows = Array.from({length:ROW_COUNT}, emptyRow);
   resetMatchState();
   wonAnnounced = false;
-  if(vsBot) botSecret = randomCode();
-  updatePresenceReady();
+  if(vsBot){
+    botSecret = randomCode();
+  } else {
+    mySecretLocked = false;
+    room.turn = null; room.startSent = false;
+    updatePresenceReady();
+  }
   render();
 }
 function toggleVsBot(){
@@ -205,6 +224,7 @@ function toggleVsBot(){
     vsBot = true;
     botSecret = randomCode();
   }
+  mySecretLocked = false;
   rows = Array.from({length:ROW_COUNT}, emptyRow);
   resetMatchState();
   wonAnnounced = false;
@@ -221,14 +241,32 @@ function newBotSecret(){
 /* ---------------- online room ---------------- */
 function updatePresenceReady(){
   if(!vsBot && room.channel && room.status === 'connected'){
-    room.channel.track({ ready: secretComplete() });
+    room.channel.track({ locked: mySecretLocked });
   }
+}
+/* Once both sides are locked in, the client with the lexicographically
+   smaller id flips the coin (both clients agree on this without talking
+   first) and broadcasts who goes first. */
+function maybeStartMatch(){
+  if(vsBot || room.turn || room.startSent) return;
+  if(!mySecretLocked || !room.opponentLocked || !room.opponentId) return;
+  if(room.myId > room.opponentId) return;                // only the "smaller id" client hosts the coin flip
+  room.startSent = true;
+  const firstPlayerId = Math.random() < 0.5 ? room.myId : room.opponentId;
+  room.channel?.send({ type:'broadcast', event:'start', payload:{ firstPlayerId } });
+  applyStart(firstPlayerId);
+}
+function applyStart(firstPlayerId){
+  room.turn = firstPlayerId === room.myId ? 'me' : 'them';
+  render();
 }
 function connectRoom(code){
   if(!code) return;
   if(room.channel) leaveRoom(false);
   room.code = code;
   room.status = 'connecting';
+  mySecretLocked = false;
+  room.opponentId = null; room.turn = null; room.startSent = false;
   rows = Array.from({length:ROW_COUNT}, emptyRow);
   resetMatchState();
   wonAnnounced = false;
@@ -241,17 +279,20 @@ function connectRoom(code){
   channel
     .on('broadcast', { event:'guess' }, ({ payload }) => handleIncomingGuess(payload))
     .on('broadcast', { event:'result' }, ({ payload }) => handleIncomingResult(payload))
+    .on('broadcast', { event:'start' }, ({ payload }) => applyStart(payload.firstPlayerId))
     .on('presence', { event:'sync' }, () => {
       const state = channel.presenceState();
       const others = Object.keys(state).filter(k => k !== room.myId);
       room.opponentPresent = others.length > 0;
-      room.opponentReady = others.some(k => state[k].some(p => p.ready));
+      room.opponentId = others[0] || null;
+      room.opponentLocked = others.some(k => state[k].some(p => p.locked));
+      maybeStartMatch();
       render();
     })
     .subscribe(status => {
       if(status === 'SUBSCRIBED'){
         room.status = 'connected';
-        channel.track({ ready: secretComplete() });
+        channel.track({ locked: mySecretLocked });
         render();
       } else if(status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED'){
         room.status = 'idle';
@@ -263,16 +304,19 @@ function connectRoom(code){
 }
 function leaveRoom(rerender = true){
   if(room.channel){ getSupabase().removeChannel(room.channel); room.channel = null; }
-  room.status = 'idle'; room.code = ''; room.opponentPresent = false; room.opponentReady = false;
+  room.status = 'idle'; room.code = ''; room.opponentPresent = false; room.opponentLocked = false;
+  room.opponentId = null; room.turn = null; room.startSent = false;
+  mySecretLocked = false;
   if(rerender) render();
 }
-/* opponent's guess at MY code — check it locally and broadcast the verdict back */
+/* opponent's guess at MY code — check it locally, broadcast the verdict back, then it's my turn */
 function handleIncomingGuess({ rowIndex, digits }){
   if(rowIndex == null || rowIndex >= ROW_COUNT) return;
   rows[rowIndex].theirs = digits;
   const correct = digits.map((d,c) => secret[c] !== '' && d === secret[c]);
   room.channel?.send({ type:'broadcast', event:'result', payload:{ rowIndex, correct } });
   if(correct.every(Boolean)) room.theyCracked = true;
+  room.turn = 'me';
   render();
 }
 /* the verdict on MY guess at THEIR code */
@@ -287,6 +331,7 @@ function submitOnlineGuess(rowIdx){
   const row = rows[rowIdx];
   row.mineSubmitted = true;
   room.channel?.send({ type:'broadcast', event:'guess', payload:{ rowIndex: rowIdx, digits:[...row.mine] } });
+  room.turn = 'them';
   render();
 }
 
@@ -342,7 +387,7 @@ function updateMineDigit(rowIdx, colIdx, val){
     markCorrect(rowIdx, colIdx);
     ding();
   }
-  if(!vsBot && room.status === 'connected' && row.mine.every(d => d !== '')){
+  if(!vsBot && room.status === 'connected' && room.turn === 'me' && row.mine.every(d => d !== '')){
     submitOnlineGuess(rowIdx);
     return;                                             // submitOnlineGuess already re-renders
   }
@@ -377,7 +422,7 @@ function digitCellHTML(locator, value, tint, correct, locked){
 
 function groupHTML(row, rowIdx, which){
   if(which === 'mine'){
-    const guessesOpen = vsBot || (room.status === 'connected' && room.opponentReady && secretComplete());
+    const guessesOpen = vsBot || (room.status === 'connected' && room.turn === 'me');
     return `<div class="cellGroup">${row.mine.map((d,c) =>
       digitCellHTML(`mine-${rowIdx}-${c}`, d, 'tint-mine', row.mineCorrect[c], row.mineLocked[c] || row.mineSubmitted || !guessesOpen)).join('')}</div>`;
   }
@@ -401,10 +446,10 @@ function render(){
        <span style="color:#5f86b8;">blue</span> column — a correct digit turns green right where you typed it.
        Fill in your own secret below, then tap <b>🐾 Ice's turn</b> to let her guess back, one row at a time.`
     : room.status === 'connected'
-    ? `Duel in room <b>${room.code}</b>. Type your guesses into your <span style="color:#5f86b8;">blue</span> column —
-       a digit turns green the moment your partner confirms it's in the right spot.`
+    ? `Duel in room <b>${room.code}</b>. Lock in your secret, then take turns — a digit turns green the moment
+       your partner confirms it's in the right spot.`
     : `Play a live duel with someone on another device. Agree on a room code with them, both type it in below, and
-       tap <b>join room</b>.`;
+       tap <b>join room</b>. Once you're both locked in, we'll randomly pick who guesses first.`;
 
   const firstIsMine = vsBot ? turnOrder === 'you' : true;
   const { digits: solvedDigits, count: solvedCount } = solvedInfo();
@@ -416,12 +461,17 @@ function render(){
         <div class="secretDigits">
           ${secret.map((d,i) => `
             <div class="secretCell">
-              <input data-locator="sec-${i}" value="${d}" inputmode="numeric" maxlength="1">
+              <input data-locator="sec-${i}" value="${d}" inputmode="numeric" maxlength="1" ${(!vsBot && mySecretLocked) ? 'disabled' : ''}>
             </div>`).join('')}
         </div>
         <div class="btnRow">
-          <button class="btn small" id="randBtn">🎲 random</button>
-          <button class="btn small ghost" id="clearBtn">clear</button>
+          ${!vsBot && mySecretLocked ? `
+            <span class="botStatus" style="flex:none;">🔒 locked in</span>
+          ` : `
+            <button class="btn small" id="randBtn">🎲 random</button>
+            <button class="btn small ghost" id="clearBtn">clear</button>
+            ${!vsBot ? `<button class="btn small" id="lockBtn" ${!secretComplete() ? 'disabled' : ''}>🔒 lock in</button>` : ''}
+          `}
         </div>
       </div>
     </div>
@@ -444,9 +494,11 @@ function render(){
             <div class="botStatus">
               room <b>${room.code}</b> —
               ${!room.opponentPresent ? 'waiting for your partner to join…'
-                : !secretComplete() ? 'set your secret above so the duel can start'
-                : !room.opponentReady ? "waiting for your partner to lock in their secret…"
-                : 'duel is on! ♥'}
+                : !mySecretLocked ? 'lock in your secret above so the duel can start'
+                : !room.opponentLocked ? 'waiting for your partner to lock in their secret…'
+                : room.turn === 'me' ? 'your turn — take a guess!'
+                : room.turn === 'them' ? "waiting on your partner's guess…"
+                : 'starting the duel…'}
             </div>
             <button class="btn small ghost" id="leaveRoomBtn">leave room</button>
           </div>
@@ -526,8 +578,12 @@ function wireInputs(){
     const el = app.querySelector(`[data-locator="sec-${i}"]`);
     if(el) el.oninput = e => updateSecretDigit(i, e.target.value);
   });
-  document.getElementById('randBtn').onclick = randomizeSecret;
-  document.getElementById('clearBtn').onclick = clearSecret;
+  const randBtn = document.getElementById('randBtn');
+  if(randBtn) randBtn.onclick = randomizeSecret;
+  const clearBtn = document.getElementById('clearBtn');
+  if(clearBtn) clearBtn.onclick = clearSecret;
+  const lockBtn = document.getElementById('lockBtn');
+  if(lockBtn) lockBtn.onclick = lockSecret;
   document.getElementById('resetBtn').onclick = resetBoard;
   document.getElementById('newGameBtn').onclick = newGame;
 
