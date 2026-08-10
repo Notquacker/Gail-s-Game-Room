@@ -28,21 +28,38 @@
   }
   .chip.hit{ background:var(--green); text-decoration:line-through; opacity:.75; }
   #pack{ transform:scale(.6); transform-origin:100% 100%; }   /* smaller pups, off the grid */
+
+  .playArea{ display:flex; flex-direction:column; align-items:center; gap:12px; }
+  /* desktop: word list + button beside the grid instead of below it, and the grid
+     itself gets to grow well past the mobile 460px cap */
+  @media (min-width:820px){
+    .playArea{
+      display:grid; grid-template-columns:1fr 260px; align-items:start; gap:26px;
+      width:min(92vw, 900px);
+    }
+    .controlsCol{ display:flex; flex-direction:column; align-items:center; gap:16px; padding-top:16px; }
+    #grid{ width:min(64vh, 640px); }
+    #words{ max-width:260px; }
+  }
 </style>
 </head>
 <body>
 
 <h1 class="bigtitle" style="font-size:34px;">Word Salad</h1>
 <div id="theme"></div>
-<div id="grid"></div>
-<div id="words"></div>
-<button class="btn" id="again" style="font-size:18px; padding:7px 24px;">new salad ✨</button>
+<div class="playArea">
+  <div id="grid"></div>
+  <div class="controlsCol">
+    <div id="words"></div>
+    <button class="btn" id="again" style="font-size:18px; padding:7px 24px;">new salad ✨</button>
+  </div>
+</div>
 
 <script src="shared.js"></script>
 <script>
 /* word sets — very personal on purpose 🙂 edit / add your own! */
 const WORD_SETS = [
-  { name:'the pack 🐺',  words:['ARCHY','CHIP','HUSKY','PAW','BONE','TREAT','WOOF','FLUFF'] },
+  { name:'the pack 🐺',  words:['ARCHIE','CHIP','HUSKY','PAW','BONE','TREAT','WOOF','FLUFF'] },
   { name:'love ♥',       words:['GAIL','HEART','LOVE','KISS','HUG','SWEET','CUTIE','MINE'] },
   { name:'cozy home 🏠', words:['TIDY','BOOK','MUG','PLANT','CANDLE','SOCKS','PILLOW','TEA'] },
 ];

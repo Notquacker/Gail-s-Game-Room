@@ -37,6 +37,14 @@
   .key:active{ transform:translateY(2px); }
   #again{ display:none; }
   #pack{ transform:scale(.6); transform-origin:100% 100%; }   /* smaller pups, off the keyboard */
+
+  /* desktop: the 58px tile cap only exists to fit narrow phones — let it grow once
+     there's room, board+keyboard stay stacked since they have to match widths anyway */
+  @media (min-width:820px){
+    .tile{ width:68px; height:68px; }
+    .key{ font-size:16px; padding:13px 11px; min-width:34px; }
+    .key.wide{ padding:13px 16px; }
+  }
 </style>
 </head>
 <body>

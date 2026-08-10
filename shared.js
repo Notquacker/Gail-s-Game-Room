@@ -178,9 +178,9 @@ function setupPause(onRestart){
   ov.querySelector('#restartBtn').onclick = () => { ov.classList.add('hidden'); onRestart(); };
 }
 
-/* put Archy, Ice & Chip in the corner of any page */
+/* put Archie, Ice & Chip in the corner of any page */
 function buildPack(){
-  const names   = ['Archy', 'Ice', 'Chip'];
+  const names   = ['Archie', 'Ice', 'Chip'];
   const furs    = ['#6b7683', '#c3cfd9', '#b98a62'];
   const collars = [PALETTE[0], PALETTE[4], PALETTE[3]];
   let pack = document.getElementById('pack');

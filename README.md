@@ -1,9 +1,9 @@
-<img src="build/icon.png" width="140" align="right" alt="Gail's Game Room icon — pixel art of Gail with Archy, Ice and Chip">
+<img src="build/icon.png" width="140" align="right" alt="Gail's Game Room icon — pixel art of Gail with Archie, Ice and Chip">
 
 # Gail's Game Room ♥
 
-*Six cozy games made with love for **Gail**, starring our three babies —
-**Archy**, **Ice** & **Chip** the huskies.*
+*Seven cozy games made with love for **Gail**, starring our three babies —
+**Archie**, **Ice** & **Chip** the huskies.*
 
 | Game | What it is |
 |---|---|
@@ -11,8 +11,9 @@
 |  **Sudoku** | freshly generated puzzles (always exactly one solution), three difficulties, hints, and your progress auto-saves |
 |  **Wordle** | guess the five-letter word in six tries — real English *and* Dutch words, checked against a live dictionary |
 |  **Word Salad** | find the hidden words — themed around the pack, love, and home |
-|  **Cipher Duel** | crack a hidden 6-digit code — play a pass-and-play duel with a friend, or go solo against **Ice**, who guesses back and remembers every wrong digit |
+|  **Cipher Duel** | crack a hidden 6-digit code live online with a partner on another device — lock in your secret, then take alternating turns, with a coin flip deciding who guesses first — or go solo against **Ice** |
 |  **Lucky Number** | type logic rules (`even`, `>40`, `cijfersom<=7`, `tussen20-30`, `dubbelecijfers`, …) to narrow a grid of numbers down to one — play 1–100 or 1–1000 |
+|  **Code Vault** | classic Mastermind: crack a hidden 4-peg code (each color used at most once) in 10 tries using black/white peg feedback — solo against **Chip**, or online where one partner locks the code and the other cracks it |
 
 Open the game, land on a **home screen**, pick a game from the **game room** menu, and every
 game shares the same pastel look, pause menu, and husky supervision from the corner.
@@ -43,7 +44,7 @@ the exe. New levels appear automatically — you never need a new exe.
 ## 3 · How to play
 
 Every game has a **pause button** (⏸): resume, restart (the same puzzle/level, not a new
-one), jump to **choose a game**, or go all the way **home**. Click **Archy, Ice or Chip** in
+one), jump to **choose a game**, or go all the way **home**. Click **Archie, Ice or Chip** in
 the corner any time for an awooo 🐺 — they wag and blink on their own too.
 
 ###  A Little Tidier
@@ -101,13 +102,24 @@ below the grid. Found words get crossed off and highlighted in the grid.
 
 ###  Cipher Duel
 
-Enter your own 6-digit secret, then log guesses row by row for both players. Typing auto-advances
-to the next box, and tapping the little dot on a digit (or typing the right one against **Ice**)
-turns it green right where you entered it — nothing gets auto-filled elsewhere, so every row stays
-an honest guess. The paw button switches to solo mode against **Ice**: she hides her own code for
-you to guess, and her **Ice's turn** button makes her guess back at yours, one row per tap — she
-remembers every wrong digit and deduces the last one for free once nine are ruled out. Your board
-**auto-saves**.
+Type a room code and tap **join room** — whoever's on the other end, on any device, joins the
+same live duel over the network. Build your 6-digit secret and tap **lock in** (it can't be
+changed after that); once you're both locked in, we flip a coin to see who guesses first, then
+you take strict alternating turns — a digit turns green the instant your partner confirms it's in
+the right spot. The paw button switches to solo mode against **Ice** instead: she hides her own
+code for you to guess, and her **Ice's turn** button makes her guess back at yours, one row per
+tap — she remembers every wrong digit and deduces the last one for free once nine are ruled out.
+Your board **auto-saves** in solo mode.
+
+###  Code Vault
+
+Classic Mastermind. Online, one player locks in a secret 4-peg code — 6 colors to choose from,
+each usable only once — (tap a color swatch to fill the next empty slot) and the other gets 10
+tries to crack it — each guess comes back with black
+pegs (right color, right spot) and white pegs (right color, wrong spot), but never *which* peg is
+which, so it's real deduction. Roles are assigned automatically when you both join a room. The paw
+button switches to solo mode against **Chip**, who's already locked in a random code for you to
+crack — no setup needed, just start guessing. Solo sessions **auto-save**.
 
 ###  Lucky Number
 
@@ -128,10 +140,10 @@ one and the pack celebrates. Your rules and crossed-off numbers **auto-save**.
 Hand-written HTML, CSS and vanilla JavaScript — no frameworks, no build step, no npm
 dependencies at runtime. [`index.html`](index.html) is the home screen / game picker;
 [`tidier.html`](tidier.html), [`sudoku.html`](sudoku.html), [`wordle.html`](wordle.html),
-[`salad.html`](salad.html), [`cipherduel.html`](cipherduel.html) and
-[`luckynumber.html`](luckynumber.html) are the six games, each its own page.
-[`shared.css`](shared.css) and [`shared.js`](shared.js) hold the common look, sounds, sparkles and
-the husky pack so every page shares them instead of repeating the code.
+[`salad.html`](salad.html), [`cipherduel.html`](cipherduel.html),
+[`luckynumber.html`](luckynumber.html) and [`codevault.html`](codevault.html) are the seven
+games, each its own page. [`shared.css`](shared.css) and [`shared.js`](shared.js) hold the common
+look, sounds, sparkles and the husky pack so every page shares them instead of repeating the code.
 
 -  **All the art is code.** Every frame, pencil, mug, biscuit, spoon and husky is an
   inline **SVG drawn by JavaScript functions** — shapes, gradients and paths, zero image
@@ -145,8 +157,13 @@ the husky pack so every page shares them instead of repeating the code.
   [Dictionary API](https://dictionaryapi.dev/) (English only; it quietly lets a guess through
   if there's no internet to check it).
 -  **Progress is saved with `localStorage`:** which Tidier levels are finished, Sudoku's
-  current puzzle/entries/difficulty, Cipher Duel's secret/board/bot state, and Lucky Number's
-  range/rules/crossed-off numbers — all survive closing the app.
+  current puzzle/entries/difficulty, Cipher Duel's solo-vs-Ice state, Code Vault's solo-vs-Chip
+  state, and Lucky
+  Number's range/rules/crossed-off numbers — all survive closing the app. Online rooms in Cipher
+  Duel and Code Vault are session-only and don't persist.
+-  **Online duels run on [Supabase Realtime](https://supabase.com/realtime):** Cipher Duel and
+  Code Vault use it purely as a live relay (Broadcast + Presence channels, no database) — secrets
+  never leave the device that owns them, only guesses and verdicts get sent over the wire.
 -  **The desktop app is [Electron](https://www.electronjs.org/):** [`main.js`](main.js)
   opens a window and loads the game room into it. [`electron-builder`](https://www.electron.build/)
   packs it into a single portable exe. (See [`ELECTRON.md`](ELECTRON.md) for a crash course.)
@@ -156,7 +173,7 @@ the husky pack so every page shares them instead of repeating the code.
 -  The game design doc lives in [`PROMPT.md`](PROMPT.md).
 
 Made in 2026 by **Xayvion**, together with Claude (Anthropic) — for Gail,
-supervised at all times by Archy, Ice and Chip.
+supervised at all times by Archie, Ice and Chip.
 
 ## Building it yourself
 

@@ -39,19 +39,36 @@
   }
   #pad button:active{ transform:translateY(2px); box-shadow:none; }
   #pack{ transform:scale(.6); transform-origin:100% 100%; }   /* smaller pups, off the board */
+
+  .playArea{ display:flex; flex-direction:column; align-items:center; gap:12px; }
+  /* desktop: difficulty + number pad beside the board instead of above/below it,
+     and the board itself gets to grow well past the mobile 480px cap */
+  @media (min-width:820px){
+    .playArea{
+      display:grid; grid-template-columns:220px 1fr; align-items:center; gap:28px;
+      width:min(92vw, 940px);
+    }
+    .controlsCol{ display:flex; flex-direction:column; align-items:center; gap:18px; }
+    #board{ width:min(64vh, 640px); }
+    #pad{ max-width:220px; }
+  }
 </style>
 </head>
 <body>
 
 <button class="roundBtn right" id="hintBtn" title="hint">?</button>
 <h1 class="bigtitle" style="font-size:34px;">Sudoku</h1>
-<div id="diffs">
-  <button class="btn" data-g="38">easy</button>
-  <button class="btn on" data-g="32">medium</button>
-  <button class="btn" data-g="27">hard</button>
+<div class="playArea">
+  <div class="controlsCol">
+    <div id="diffs">
+      <button class="btn" data-g="38">easy</button>
+      <button class="btn on" data-g="32">medium</button>
+      <button class="btn" data-g="27">hard</button>
+    </div>
+    <div id="pad"></div>
+  </div>
+  <div id="board"></div>
 </div>
-<div id="board"></div>
-<div id="pad"></div>
 
 <script src="shared.js"></script>
 <script>

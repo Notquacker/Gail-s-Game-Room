@@ -8,8 +8,22 @@
 <meta name="theme-color" content="#f7f0e2">
 <link rel="stylesheet" href="shared.css">
 <style>
-  body{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:56px 10px 130px; }
+  body{ position:relative; display:flex; flex-direction:column; align-items:center; gap:10px; padding:56px 10px 150px; }
   #app{ width:min(94vw, 480px); display:flex; flex-direction:column; gap:12px; }
+  .controlsArea{ display:flex; flex-direction:column; gap:12px; }
+
+  /* the guess table can grow taller than the viewport, so the pack must scroll with
+     the page instead of staying fixed — otherwise it covers whatever row is underneath
+     it. see luckynumber.html. */
+  #pack{ position:absolute; }
+
+  /* desktop: secret + mode panels side by side instead of stacked, and bigger digit cells */
+  @media (min-width:820px){
+    #app{ width:min(90vw, 820px); }
+    .controlsArea{ display:grid; grid-template-columns:1fr 1fr; align-items:start; gap:14px; }
+    .digitCell{ width:32px; height:32px; }
+    .digitInput{ font-size:16px; }
+  }
 
   .panel{
     background:var(--card); border:3px solid var(--ink); border-radius:16px;
@@ -455,6 +469,7 @@ function render(){
   const { digits: solvedDigits, count: solvedCount } = solvedInfo();
 
   app.innerHTML = `
+    <div class="controlsArea">
     <div class="panel">
       <div class="panelLabel">Your secret code</div>
       <div class="secretRow">
@@ -529,6 +544,7 @@ function render(){
           </div>
           <button class="btn small ghost" id="newBotBtn">🔀 new hidden code</button>
         </div>` : ''}
+    </div>
     </div>
 
     <div class="panel">

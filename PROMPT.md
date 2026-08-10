@@ -18,7 +18,7 @@ sprinkled with hearts and a dedication to her.
 - Warm paper-coloured background (`#f7f0e2`) with a subtle speckle texture.
 - Soft pastel palette: dusty pink, baby blue, sage green, butter yellow, lilac.
 - Hand-written feel: `Segoe Print` / `Comic Sans` style font, slightly wobbly, thick friendly outlines.
-- The three huskies — **Archy, Ice & Chip** — sit in the corner with little name tags:
+- The three huskies — **Archie, Ice & Chip** — sit in the corner with little name tags:
   tails wag (out of sync), eyes blink, and clicking one makes it howl (awoo!). (The pack is mandatory.)
 
 ## Game feel ("juice")
@@ -53,7 +53,7 @@ sprinkled with hearts and a dedication to her.
 ## Personalization (easy to edit, top of the file)
 - `CONFIG.herName` — Gail (used on the title screen, the Love Letters level, the ending).
 - `CONFIG.dedication` — the personal message on the ending screen.
-- `CONFIG.pack` / `CONFIG.packFur` — the babies' names and fur colours (Archy = grey, Ice = snow, Chip = copper).
+- `CONFIG.pack` / `CONFIG.packFur` — the babies' names and fur colours (Archie = grey, Ice = snow, Chip = copper).
   They sit bottom-right on every screen and sign the ending message.
 - The palette and banner texts are also constants near the top.
 

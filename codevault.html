@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Code Vault ♥ Gail's Game Room</title>
+<link rel="icon" type="image/png" href="build/icon.png">
+<meta name="theme-color" content="#f7f0e2">
+<link rel="stylesheet" href="shared.css">
+<style>
+  body{ position:relative; display:flex; flex-direction:column; align-items:center; gap:10px; padding:56px 10px 150px; }
+  #app{ width:min(94vw, 480px); display:flex; flex-direction:column; gap:12px; }
+  .playArea{ display:flex; flex-direction:column; gap:12px; }
+
+  /* the guess history can grow taller than the viewport (10 rows + panels above it),
+     so the pack must scroll with the page instead of staying fixed — otherwise it
+     permanently covers whatever row happens to sit underneath it. see luckynumber.html. */
+  #pack{ position:absolute; }
+
+  /* desktop: use the extra width instead of staying phone-narrow — the code/guess
+     builder sits beside the guess history instead of stacking underneath it */
+  @media (min-width:820px){
+    #app{ width:min(90vw, 860px); }
+    .playArea{ display:grid; grid-template-columns:320px 1fr; align-items:start; gap:14px; }
+  }
+
+  .panel{
+    background:var(--card); border:3px solid var(--ink); border-radius:16px;
+    padding:14px 16px; box-shadow:3px 4px 0 rgba(92,74,61,.2);
+  }
+  .panelLabel{ font-size:14px; letter-spacing:.03em; color:var(--ink-soft); margin-bottom:8px; }
+
+  .btn.small{ font-size:15px; padding:6px 16px; }
+  .btn.ghost{ color:var(--ink-soft); background:transparent; box-shadow:none; border-style:dashed; }
+  .btnRow{ display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
+
+  .ruleRow{ display:flex; gap:8px; }
+  .ruleInput{
+    flex:1; background:#fffdf6; border:2px solid #e0d5c2; border-radius:9px;
+    color:var(--ink); padding:9px 12px; font-family:inherit; font-size:15px; outline:none;
+  }
+  .ruleInput:focus{ border-color:var(--blue); }
+  .hintText{ margin:8px 0 0; font-size:11.5px; color:var(--ink-soft); line-height:1.6; }
+
+  .botBlock{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .botStatus{ font-size:13.5px; color:var(--ink-soft); flex:1; min-width:140px; }
+
+  .roleBadge{
+    display:inline-block; margin-top:8px; font-size:13px; padding:4px 12px; border-radius:999px;
+    background:linear-gradient(180deg,#fffdf6,#f8eed8); border:2px solid var(--ink); color:var(--ink);
+  }
+
+  .pegSlots{ display:flex; gap:10px; }
+  .pegSlot{
+    width:40px; height:40px; border-radius:50%; cursor:pointer;
+    border:2.5px dashed #d8cbb0; background:#fdf6e6; transition:transform .1s;
+  }
+  .pegSlot.filled{ border-style:solid; cursor:pointer; }
+  .pegSlot.filled:active{ transform:translateY(2px); }
+  .pegSwatches{ display:flex; gap:9px; margin-top:12px; flex-wrap:wrap; }
+  .pegSwatch{
+    width:34px; height:34px; border-radius:50%; border:2px solid var(--ink); padding:0; cursor:pointer;
+    box-shadow:1px 2px 0 rgba(92,74,61,.2);
+  }
+  .pegSwatch:active{ transform:translateY(2px); box-shadow:none; }
+  .pegSwatch:disabled, .pegSlot[disabled]{ opacity:.5; cursor:default; }
+
+  .guessRow{ display:flex; align-items:center; gap:10px; padding:6px 2px; border-top:1.5px solid #ecdfc4; }
+  .guessRow:first-of-type{ border-top:none; }
+  .guessRow.next{ background:#fbf4e2; border-radius:8px; }
+  .rowNum{ color:var(--ink-soft); font-size:13px; width:16px; text-align:right; flex:none; }
+  .guessPegs{ display:flex; gap:5px; flex:none; }
+  .miniPeg{ width:20px; height:20px; border-radius:50%; border:1.5px solid rgba(92,74,61,.35); }
+  .miniPeg.empty{ border:1.5px dashed #d8cbb0; background:transparent; }
+  .feedbackPegs{ display:flex; gap:3px; flex-wrap:wrap; width:38px; flex:none; }
+  .fbDot{ width:9px; height:9px; border-radius:50%; }
+  .fbDot.black{ background:#3a3330; }
+  .fbDot.white{ background:#fffdf6; border:1.5px solid #3a3330; }
+
+  .fbLegend{ display:flex; flex-wrap:wrap; gap:14px; font-size:12.5px; color:var(--ink-soft); margin-bottom:8px; }
+  .fbLegend span{ display:flex; align-items:center; gap:6px; }
+
+  .solvedStrip{ margin-top:10px; font-size:13.5px; color:var(--ink-soft); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+
+  @media (max-width:380px){
+    .pegSlot{ width:32px; height:32px; }
+    .pegSwatch{ width:28px; height:28px; }
+    .miniPeg{ width:16px; height:16px; }
+  }
+</style>
+</head>
+<body>
+
+<button class="roundBtn right" id="botBtn" title="play solo vs Chip">🐾</button>
+<h1 class="bigtitle" style="font-size:34px;">Code Vault</h1>
+<div class="sub tiny" id="subtext" style="max-width:min(94vw,480px);"></div>
+
+<div id="app"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+const CODE_LENGTH = 4;
+const MAX_GUESSES = 10;
+const PEG_COLORS = PALETTE;                                   // 6 hex colors, shared.js
+const PEG_NAMES = ['pink','peach','yellow','green','blue','lilac'];
+const SAVE_KEY = 'codevault-save';
+
+function randomPegCode(){ return shuffle([...PEG_COLORS]).slice(0, CODE_LENGTH); }   // no repeats — every color used at most once
+function emptyGuessRow(){ return { pegs: Array(CODE_LENGTH).fill(null), black: null, white: null }; }
+function fillNextSlot(arr, color){
+  if(arr.includes(color)) return arr;                    // each color can only be used once per code
+  const i = arr.findIndex(p => p === null);
+  if(i === -1) return arr;
+  const next = [...arr]; next[i] = color; return next;
+}
+/* standard Mastermind scoring: exact matches first, then color-only matches among the rest */
+function scoreGuess(secretArr, guessArr){
+  let black = 0;
+  const secretLeft = [], guessLeft = [];
+  for(let i = 0; i < secretArr.length; i++){
+    if(guessArr[i] === secretArr[i]) black++;
+    else { secretLeft.push(secretArr[i]); guessLeft.push(guessArr[i]); }
+  }
+  let white = 0;
+  const used = Array(secretLeft.length).fill(false);
+  for(const g of guessLeft){
+    const idx = secretLeft.findIndex((s,i) => !used[i] && s === g);
+    if(idx !== -1){ used[idx] = true; white++; }
+  }
+  return { black, white };
+}
+
+let vsBot = true;                                              // instant-play default; no setup needed
+let secret = Array(CODE_LENGTH).fill(null);                    // codemaker's code (online, codemaker role only)
+let botSecret = randomPegCode();
+let draftGuess = Array(CODE_LENGTH).fill(null);
+let rows = Array.from({length:MAX_GUESSES}, emptyGuessRow);
+let guessCount = 0;
+let solved = false;
+let wonAnnounced = false, lostAnnounced = false;
+let mySecretLocked = false;
+let awaitingFeedback = false;
+
+/* online duel — mirrors Cipher Duel's Supabase Realtime pattern. Once both
+   players are present, whichever client has the lexicographically smaller
+   id is deterministically the codemaker (both sides agree without talking
+   first) — no coin flip needed since only the codebreaker ever guesses. */
+let room = {
+  code: '', status: 'idle',        // idle | connecting | connected
+  channel: null, myId: (crypto.randomUUID ? crypto.randomUUID() : uid('player')),
+  opponentPresent: false, opponentId: null, opponentLocked: false,
+  amCodemaker: null,               // null until opponentId is known | true | false
+  iWon: false, theyWon: false, revealedSecret: null,
+};
+
+/* ---------------- persistence (bot-mode sessions only — online rooms are ephemeral) ---------------- */
+function saveState(){
+  try{
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ vsBot, botSecret, rows, guessCount, solved }));
+  }catch(e){}
+}
+function loadSaved(){
+  try{ const raw = localStorage.getItem(SAVE_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+
+/* ---------------- shared round reset ---------------- */
+function resetRound(){
+  secret = Array(CODE_LENGTH).fill(null);
+  draftGuess = Array(CODE_LENGTH).fill(null);
+  rows = Array.from({length:MAX_GUESSES}, emptyGuessRow);
+  guessCount = 0; solved = false; wonAnnounced = false; lostAnnounced = false; awaitingFeedback = false;
+  mySecretLocked = false;
+  room.iWon = false; room.theyWon = false; room.revealedSecret = null;
+}
+
+/* ---------------- codemaker actions (online only) ---------------- */
+function randomizeSecret(){ if(mySecretLocked) return; secret = randomPegCode(); render(); }
+function clearSecretAll(){ if(mySecretLocked) return; secret = Array(CODE_LENGTH).fill(null); render(); }
+function lockSecret(){
+  if(vsBot || mySecretLocked || !secret.every(p => p !== null)) return;
+  mySecretLocked = true;
+  ding();
+  updatePresence();
+  render();
+}
+
+/* ---------------- codebreaker / bot-mode guessing ---------------- */
+function canGuess(){
+  if(solved || guessCount >= MAX_GUESSES) return false;
+  if(vsBot) return true;
+  if(room.status !== 'connected' || room.amCodemaker !== false) return false;
+  if(!room.opponentLocked || awaitingFeedback) return false;
+  return true;
+}
+function submitGuess(){
+  if(!canGuess() || !draftGuess.every(p => p !== null)) return;
+  const rowIdx = guessCount;
+  rows[rowIdx].pegs = [...draftGuess];
+  if(vsBot){
+    const { black, white } = scoreGuess(botSecret, draftGuess);
+    rows[rowIdx].black = black; rows[rowIdx].white = white;
+    guessCount++;
+    if(black === CODE_LENGTH) solved = true;
+    tone(620, 0, .06, 'triangle', .05);
+  } else {
+    room.channel?.send({ type:'broadcast', event:'guess', payload:{ rowIndex: rowIdx, pegs:[...draftGuess] } });
+    guessCount++;
+    awaitingFeedback = true;
+  }
+  draftGuess = Array(CODE_LENGTH).fill(null);
+  render();
+}
+function newBotSecret(){
+  botSecret = randomPegCode();
+  resetRound();
+  render();
+}
+function toggleVsBot(){
+  if(vsBot){
+    vsBot = false;
+  } else {
+    leaveRoom(false);
+    vsBot = true;
+    botSecret = randomPegCode();
+  }
+  resetRound();
+  render();
+}
+
+/* ---------------- online room ---------------- */
+function updatePresence(){
+  if(!vsBot && room.channel && room.status === 'connected'){
+    room.channel.track({ locked: mySecretLocked });
+  }
+}
+function connectRoom(code){
+  if(!code) return;
+  if(room.channel) leaveRoom(false);
+  room.code = code;
+  room.status = 'connecting';
+  room.opponentPresent = false; room.opponentId = null; room.opponentLocked = false; room.amCodemaker = null;
+  resetRound();
+  render();
+
+  const channel = getSupabase().channel(`codevault:${code}`, {
+    config: { broadcast: { self:false }, presence: { key: room.myId } }
+  });
+
+  channel
+    .on('broadcast', { event:'guess' }, ({ payload }) => handleIncomingGuess(payload))
+    .on('broadcast', { event:'feedback' }, ({ payload }) => handleIncomingFeedback(payload))
+    .on('presence', { event:'sync' }, () => {
+      const state = channel.presenceState();
+      const others = Object.keys(state).filter(k => k !== room.myId);
+      room.opponentPresent = others.length > 0;
+      room.opponentId = others[0] || null;
+      room.opponentLocked = others.some(k => state[k].some(p => p.locked));
+      room.amCodemaker = room.opponentId ? (room.myId < room.opponentId) : null;
+      render();
+    })
+    .subscribe(status => {
+      if(status === 'SUBSCRIBED'){
+        room.status = 'connected';
+        channel.track({ locked: mySecretLocked });
+        render();
+      } else if(status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED'){
+        room.status = 'idle';
+        render();
+      }
+    });
+
+  room.channel = channel;
+}
+function leaveRoom(rerender = true){
+  if(room.channel){ getSupabase().removeChannel(room.channel); room.channel = null; }
+  room.status = 'idle'; room.code = '';
+  room.opponentPresent = false; room.opponentId = null; room.opponentLocked = false; room.amCodemaker = null;
+  resetRound();
+  if(rerender) render();
+}
+/* codemaker side: score the incoming guess against MY secret, send the verdict back */
+function handleIncomingGuess({ rowIndex, pegs }){
+  if(rowIndex == null || rowIndex >= MAX_GUESSES) return;
+  const { black, white } = scoreGuess(secret, pegs);
+  const solvedNow = black === CODE_LENGTH;
+  const exhaustedNow = !solvedNow && rowIndex === MAX_GUESSES - 1;
+  rows[rowIndex] = { pegs, black, white };
+  const payload = { rowIndex, black, white, solved: solvedNow };
+  if(exhaustedNow) payload.secretReveal = [...secret];
+  room.channel?.send({ type:'broadcast', event:'feedback', payload });
+  if(solvedNow) room.theyWon = true;                           // opponent cracked MY code
+  if(exhaustedNow) room.iWon = true;                            // my code survived
+  render();
+}
+/* codebreaker side: the verdict on MY guess */
+function handleIncomingFeedback({ rowIndex, black, white, solved: isSolved, secretReveal }){
+  const row = rows[rowIndex];
+  if(!row) return;
+  row.black = black; row.white = white;
+  awaitingFeedback = false;
+  if(isSolved){ solved = true; room.iWon = true; }
+  if(secretReveal){ room.revealedSecret = secretReveal; room.theyWon = true; }
+  render();
+}
+
+/* ---------------- rendering ---------------- */
+const app = document.getElementById('app');
+const subtext = document.getElementById('subtext');
+const botBtn = document.getElementById('botBtn');
+
+function pegBuilderHTML(arr, idPrefix, locked){
+  return `
+    <div class="pegSlots">
+      ${arr.map((c,i) => `<div class="pegSlot ${c ? 'filled' : ''}" style="${c ? `background:${c};border-color:${c};` : ''}" data-slot="${idPrefix}-${i}"></div>`).join('')}
+    </div>
+    ${!locked ? `
+      <div class="pegSwatches">
+        ${PEG_COLORS.map((c,i) => {
+          const disabled = arr.includes(c) || !arr.includes(null);
+          return `<button type="button" class="pegSwatch" style="background:${c};" data-swatch="${idPrefix}-${i}" data-color="${c}" aria-label="${PEG_NAMES[i]}" ${disabled ? 'disabled' : ''}></button>`;
+        }).join('')}
+      </div>` : ''}
+  `;
+}
+function pegDotsHTML(arr){
+  return `<span style="display:inline-flex; gap:4px; vertical-align:middle;">${arr.map(c =>
+    `<span style="display:inline-block; width:16px; height:16px; border-radius:50%; background:${c}; border:1.5px solid var(--ink);"></span>`).join('')}</span>`;
+}
+function guessRowHTML(row, idx){
+  return `
+    <div class="guessRow ${idx === guessCount ? 'next' : ''}">
+      <div class="rowNum">${idx+1}</div>
+      <div class="guessPegs">
+        ${Array.from({length:CODE_LENGTH}).map((_,c) => {
+          const color = row.pegs[c];
+          return `<div class="miniPeg ${color ? '' : 'empty'}" style="${color ? `background:${color};` : ''}"></div>`;
+        }).join('')}
+      </div>
+      <div class="feedbackPegs">
+        ${row.black === null ? '' : Array.from({length:row.black}).map(() => `<span class="fbDot black"></span>`).join('')}
+        ${row.white === null ? '' : Array.from({length:row.white}).map(() => `<span class="fbDot white"></span>`).join('')}
+      </div>
+    </div>`;
+}
+
+function render(){
+  saveState();
+
+  botBtn.classList.toggle('on', vsBot);
+  botBtn.style.background = vsBot ? 'linear-gradient(180deg,#e6f3e0,#d3e8c8)' : '';
+  botBtn.title = vsBot ? 'play online instead' : 'play solo vs Chip';
+
+  subtext.innerHTML = vsBot
+    ? `Chip locked a secret ${CODE_LENGTH}-peg code in the vault, each color used at most once. Crack it in ${MAX_GUESSES} tries —
+       each guess tells you how many pegs are the right color <b>and</b> spot, versus right color but the wrong spot. It never says which ones.`
+    : (room.status === 'connected' && room.amCodemaker !== null)
+    ? (room.amCodemaker
+        ? `You're the <b>codemaker</b> — lock in a secret code (each color once), then wait for your partner to try and crack it.`
+        : `You're the <b>codebreaker</b> — crack your partner's code in ${MAX_GUESSES} tries.`)
+    : `Play a live round with someone on another device: one of you locks a secret code (each color used at most once), the other
+       tries to crack it. Agree on a room code, both join, and we'll randomly decide who sets the code.`;
+
+  const showSecretPanel = !vsBot && room.status === 'connected' && room.amCodemaker === true;
+  const showGuessPanel = vsBot || (!vsBot && room.status === 'connected' && room.amCodemaker === false);
+  const showHistory = vsBot || (!vsBot && room.status === 'connected' && room.amCodemaker !== null);
+  const revealArr = vsBot ? (guessCount >= MAX_GUESSES && !solved ? botSecret : null) : room.revealedSecret;
+
+  app.innerHTML = `
+    <div class="panel">
+      ${vsBot ? `
+        <div class="panelLabel">Crack Chip's hidden code</div>
+        <div class="botBlock">
+          <div class="botStatus">
+            ${solved ? `cracked it in ${guessCount} guess${guessCount === 1 ? '' : 'es'}! 🐾`
+              : guessCount >= MAX_GUESSES ? `out of guesses — the code is revealed below`
+              : `guess ${guessCount+1} of ${MAX_GUESSES}`}
+          </div>
+          <button class="btn small ghost" id="newBotBtn">🔀 new hidden code</button>
+        </div>
+      ` : room.status === 'connected' ? `
+        <div class="panelLabel">Play online</div>
+        <div class="botBlock">
+          <div class="botStatus">
+            room <b>${room.code}</b> —
+            ${!room.opponentPresent ? 'waiting for your partner to join…'
+              : room.amCodemaker === null ? 'sorting out roles…'
+              : room.amCodemaker
+                ? (!mySecretLocked ? 'build your secret below, then lock it in'
+                   : room.theyWon ? 'your partner cracked your code! 💔'
+                   : room.iWon ? 'your code held! 🛡️'
+                   : 'your partner is guessing…')
+                : (!room.opponentLocked ? "waiting for your partner to lock in their code…"
+                   : room.iWon ? 'you cracked it! ♥'
+                   : room.theyWon ? "out of guesses — code revealed below 👀"
+                   : awaitingFeedback ? 'waiting for feedback…'
+                   : 'your turn — take a guess!')}
+          </div>
+          <button class="btn small ghost" id="leaveRoomBtn">leave room</button>
+        </div>
+        ${room.amCodemaker !== null ? `<div class="roleBadge">${room.amCodemaker ? '🔒 you are the codemaker' : '🔍 you are the codebreaker'}</div>` : ''}
+      ` : `
+        <div class="panelLabel">Play online</div>
+        <div class="ruleRow">
+          <input type="text" id="roomInput" class="ruleInput" placeholder="room code">
+          <button class="btn small" id="joinRoomBtn" ${room.status === 'connecting' ? 'disabled' : ''}>
+            ${room.status === 'connecting' ? 'connecting…' : 'join room'}
+          </button>
+        </div>
+        <p class="hintText">agree on any word with your partner, then both type it here and tap join —
+          we'll randomly decide who sets the code and who guesses.</p>
+      `}
+    </div>
+
+    <div class="playArea">
+      ${showSecretPanel ? `
+        <div class="panel">
+          <div class="panelLabel">Your secret code</div>
+          ${pegBuilderHTML(secret, 'sec', mySecretLocked)}
+          <div class="btnRow" style="margin-top:12px;">
+            ${mySecretLocked ? `<span class="botStatus" style="flex:none;">🔒 locked in</span>` : `
+              <button class="btn small" id="randSecretBtn">🎲 random</button>
+              <button class="btn small ghost" id="clearSecretBtn">clear</button>
+              <button class="btn small" id="lockBtn" ${!secret.every(p => p !== null) ? 'disabled' : ''}>🔒 lock in</button>
+            `}
+          </div>
+        </div>
+      ` : ''}
+
+      ${showGuessPanel ? `
+        <div class="panel">
+          <div class="panelLabel">Your guess</div>
+          ${pegBuilderHTML(draftGuess, 'guess', !canGuess())}
+          <div class="btnRow" style="margin-top:12px;">
+            <button class="btn small ghost" id="clearGuessBtn" ${!canGuess() ? 'disabled' : ''}>clear</button>
+            <button class="btn small" id="submitGuessBtn" ${(!canGuess() || !draftGuess.every(p => p !== null)) ? 'disabled' : ''}>submit guess</button>
+          </div>
+        </div>
+      ` : ''}
+
+      ${showHistory ? `
+        <div class="panel">
+          <div class="panelLabel">Guess history</div>
+          <div class="fbLegend">
+            <span><span class="fbDot black"></span> right color, right spot</span>
+            <span><span class="fbDot white"></span> right color, wrong spot</span>
+          </div>
+          ${rows.map((row, i) => guessRowHTML(row, i)).join('')}
+          ${revealArr ? `<div class="solvedStrip">the code was: ${pegDotsHTML(revealArr)}</div>` : ''}
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  wireInputs();
+  celebrateIfNeeded();
+}
+
+function wireInputs(){
+  app.querySelectorAll('[data-slot^="sec-"]').forEach(el => {
+    el.onclick = () => {
+      if(mySecretLocked) return;
+      secret[+el.dataset.slot.split('-')[1]] = null;
+      render();
+    };
+  });
+  app.querySelectorAll('[data-swatch^="sec-"]').forEach(el => {
+    el.onclick = () => { if(mySecretLocked) return; secret = fillNextSlot(secret, el.dataset.color); render(); };
+  });
+  const randSecretBtn = document.getElementById('randSecretBtn');
+  if(randSecretBtn) randSecretBtn.onclick = randomizeSecret;
+  const clearSecretBtn = document.getElementById('clearSecretBtn');
+  if(clearSecretBtn) clearSecretBtn.onclick = clearSecretAll;
+  const lockBtn = document.getElementById('lockBtn');
+  if(lockBtn) lockBtn.onclick = lockSecret;
+
+  app.querySelectorAll('[data-slot^="guess-"]').forEach(el => {
+    el.onclick = () => {
+      if(!canGuess()) return;
+      draftGuess[+el.dataset.slot.split('-')[1]] = null;
+      render();
+    };
+  });
+  app.querySelectorAll('[data-swatch^="guess-"]').forEach(el => {
+    el.onclick = () => { if(!canGuess()) return; draftGuess = fillNextSlot(draftGuess, el.dataset.color); render(); };
+  });
+  const clearGuessBtn = document.getElementById('clearGuessBtn');
+  if(clearGuessBtn) clearGuessBtn.onclick = () => { if(!canGuess()) return; draftGuess = Array(CODE_LENGTH).fill(null); render(); };
+  const submitGuessBtn = document.getElementById('submitGuessBtn');
+  if(submitGuessBtn) submitGuessBtn.onclick = submitGuess;
+
+  const newBotBtn = document.getElementById('newBotBtn');
+  if(newBotBtn) newBotBtn.onclick = newBotSecret;
+
+  if(!vsBot){
+    if(room.status === 'connected'){
+      const leaveBtn = document.getElementById('leaveRoomBtn');
+      if(leaveBtn) leaveBtn.onclick = () => leaveRoom();
+    } else {
+      const roomInput = document.getElementById('roomInput');
+      if(roomInput){
+        const join = () => { const code = roomInput.value.trim(); if(code) connectRoom(code); };
+        document.getElementById('joinRoomBtn').onclick = join;
+        roomInput.onkeydown = e => { if(e.key === 'Enter') join(); };
+      }
+    }
+  }
+}
+
+function celebrateIfNeeded(){
+  if(vsBot){
+    if(solved && !wonAnnounced){
+      wonAnnounced = true;
+      fanfare(); awoo();
+      sparkEl(document.querySelector('.solvedStrip') || document.querySelector('.botStatus'), 20);
+      showBanner(`cracked Chip's code in ${guessCount} guess${guessCount === 1 ? '' : 'es'}! ♥`, 2600);
+    }
+    if(!solved && guessCount >= MAX_GUESSES && !lostAnnounced){
+      lostAnnounced = true;
+      thud(); awoo();
+      showBanner("out of guesses — Chip's code is revealed 🐾", 2200);
+    }
+  } else {
+    if(room.iWon && !wonAnnounced){
+      wonAnnounced = true;
+      fanfare(); awoo();
+      showBanner(room.amCodemaker ? 'your code held! 🛡️' : 'you cracked the code! ♥', 2600);
+    }
+    if(room.theyWon && !lostAnnounced){
+      lostAnnounced = true;
+      thud(); awoo();
+      showBanner(room.amCodemaker ? 'your partner cracked your code! 💔' : 'out of guesses — code revealed 👀', 2200);
+    }
+  }
+}
+
+botBtn.onclick = toggleVsBot;
+buildPack();
+setupPause(() => { vsBot ? newBotSecret() : leaveRoom(); });
+
+const saved = loadSaved();
+if(saved && saved.vsBot && Array.isArray(saved.rows) && saved.rows.length === MAX_GUESSES
+   && Array.isArray(saved.botSecret) && saved.botSecret.length === CODE_LENGTH){
+  vsBot = true;
+  botSecret = saved.botSecret;
+  rows = saved.rows;
+  guessCount = saved.guessCount || 0;
+  solved = !!saved.solved;
+  wonAnnounced = solved;
+  lostAnnounced = !solved && guessCount >= MAX_GUESSES;
+  render();
+} else {
+  render();
+}
+</script>
+</body>
+</html>

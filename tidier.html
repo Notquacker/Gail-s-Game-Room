@@ -199,7 +199,7 @@
   .bigheart{ font-size:90px; color:var(--pink); animation:beat 1.6s ease-in-out infinite; }
   @keyframes beat{ 0%,100%{transform:scale(1)} 12%{transform:scale(1.12)} 24%{transform:scale(1)} }
 
-  /* ---------- the pack (Archy, Ice & Chip) ---------- */
+  /* ---------- the pack (Archie, Ice & Chip) ---------- */
   #pack{ position:fixed; right:14px; bottom:0; z-index:4; display:flex; align-items:flex-end; gap:2px; }
   .dog{ cursor:pointer; text-align:center; }
   .dog:active{ transform:translateY(2px); }
@@ -245,7 +245,7 @@
 const CONFIG = {
   herName:    "GAIL",                                   // ← her name (used in the letters level + screens)
   dedication: "Every little thing is better with you.", // ← message on the ending screen
-  pack:       ["Archy", "Ice", "Chip"],                 // ← the babies ♥ (shown bottom-right + on the ending)
+  pack:       ["Archie", "Ice", "Chip"],                 // ← the babies ♥ (shown bottom-right + on the ending)
   packFur:    ["#6b7683", "#c3cfd9", "#b98a62"],        //   their fur colours: grey, snow, copper
 };
 
@@ -268,7 +268,10 @@ const state = { busy:false, level:0 };
 let SCALE = 1;
 
 function fit(){
-  SCALE = Math.min((innerWidth - 20) / 900, (innerHeight - 110) / 560, 1.15);
+  // 1.15 kept the stage phone-sized even on a big desktop monitor — let it grow
+  // further there since (innerWidth-20)/900 and (innerHeight-110)/560 already cap
+  // it to whatever actually fits the viewport.
+  SCALE = Math.min((innerWidth - 20) / 900, (innerHeight - 110) / 560, 1.6);
   stage.style.transform = `scale(${SCALE})`;
 }
 addEventListener('resize', fit); fit();
