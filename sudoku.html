@@ -40,17 +40,21 @@
   #pad button:active{ transform:translateY(2px); box-shadow:none; }
   #pack{ transform:scale(.6); transform-origin:100% 100%; }   /* smaller pups, off the board */
 
+  /* mobile keeps the original order: difficulty picker, board, number pad below it
+     (within thumb reach) — plain flow, no reordering */
   .playArea{ display:flex; flex-direction:column; align-items:center; gap:12px; }
   /* desktop: difficulty + number pad beside the board instead of above/below it,
-     and the board itself gets to grow well past the mobile 480px cap */
+     and the board itself gets to grow well past the mobile 480px cap. Grid areas
+     (rather than a wrapper div) so the DOM order — and mobile layout — stay untouched. */
   @media (min-width:820px){
     .playArea{
-      display:grid; grid-template-columns:220px 1fr; align-items:center; gap:28px;
+      display:grid; grid-template-columns:220px 1fr; align-items:center; gap:18px 28px;
+      grid-template-areas:"diffs board" "pad board";
       width:min(92vw, 940px);
     }
-    .controlsCol{ display:flex; flex-direction:column; align-items:center; gap:18px; }
-    #board{ width:min(64vh, 640px); }
-    #pad{ max-width:220px; }
+    #diffs{ grid-area:diffs; justify-content:center; }
+    #board{ grid-area:board; width:min(64vh, 640px); }
+    #pad{ grid-area:pad; max-width:220px; align-self:start; }
   }
 </style>
 </head>
@@ -59,15 +63,13 @@
 <button class="roundBtn right" id="hintBtn" title="hint">?</button>
 <h1 class="bigtitle" style="font-size:34px;">Sudoku</h1>
 <div class="playArea">
-  <div class="controlsCol">
-    <div id="diffs">
-      <button class="btn" data-g="38">easy</button>
-      <button class="btn on" data-g="32">medium</button>
-      <button class="btn" data-g="27">hard</button>
-    </div>
-    <div id="pad"></div>
+  <div id="diffs">
+    <button class="btn" data-g="38">easy</button>
+    <button class="btn on" data-g="32">medium</button>
+    <button class="btn" data-g="27">hard</button>
   </div>
   <div id="board"></div>
+  <div id="pad"></div>
 </div>
 
 <script src="shared.js"></script>

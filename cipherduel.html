@@ -84,10 +84,14 @@
   .rowLine{ padding:4px 2px; border-top:1.5px solid #ecdfc4; }
   .rowLine:first-of-type{ border-top:none; }
   .rowNum{ color:var(--ink-soft); font-size:13px; text-align:right; }
-  .cellGroup{ display:flex; gap:4px; }
+  .cellGroup{ display:flex; gap:3px; }
 
+  /* both 6-digit columns need to fit side by side inside the ~480px mobile cap
+     without horizontal scrolling — 26px cells only fit >=480px, so that's now the
+     desktop-only size (see the 820px block above); this is the size for
+     everything below it, phones included. */
   .digitCell{
-    position:relative; width:26px; height:26px; border-radius:7px;
+    position:relative; width:21px; height:21px; border-radius:6px;
     background:#fffdf6; border:2px solid #e0d5c2; display:flex; align-items:center; justify-content:center;
   }
   .digitCell.tint-mine{ border-color:var(--blue); }
@@ -96,7 +100,7 @@
   .digitCell.locked{ opacity:.94; }
   .digitInput{
     width:100%; height:100%; background:transparent; border:none; outline:none;
-    text-align:center; font-family:inherit; font-size:14px; color:var(--ink);
+    text-align:center; font-family:inherit; font-size:11.5px; color:var(--ink);
   }
   .digitCell.correct .digitInput{ color:#4d7a3f; }
   .digitInput:disabled{ color:#4d7a3f; opacity:1; }
@@ -106,10 +110,11 @@
 
   .footerActions{ display:flex; gap:8px; justify-content:flex-end; }
 
-  @media (max-width:380px){
-    .digitCell{ width:22px; height:22px; }
-    .cellGroup{ gap:3px; }
-    .digitInput{ font-size:12px; }
+  /* narrower phones (most of them) need the digit cells smaller still */
+  @media (max-width:400px){
+    .digitCell{ width:18px; height:18px; border-radius:5px; }
+    .cellGroup{ gap:2px; }
+    .digitInput{ font-size:10.5px; }
     .secretCell{ width:28px; height:38px; }
     .secretDigits{ gap:4px; }
   }
