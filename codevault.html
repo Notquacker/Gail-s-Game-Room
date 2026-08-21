@@ -131,7 +131,7 @@ function scoreGuess(secretArr, guessArr){
   return { black, white };
 }
 
-let vsBot = true;                                              // instant-play default; no setup needed
+let vsBot = null;                                              // null until the player picks solo vs online
 let secret = Array(CODE_LENGTH).fill(null);                    // codemaker's code (online, codemaker role only)
 let botSecret = randomPegCode();
 let draftGuess = Array(CODE_LENGTH).fill(null);
@@ -143,19 +143,22 @@ let mySecretLocked = false;
 let awaitingFeedback = false;
 
 /* online duel — mirrors Cipher Duel's Supabase Realtime pattern. Once both
-   players are present, whichever client has the lexicographically smaller
-   id is deterministically the codemaker (both sides agree without talking
-   first) — no coin flip needed since only the codebreaker ever guesses. */
+   players are present, each one picks whether they want to be the codemaker
+   or the codebreaker (broadcast via presence); once the two picks disagree,
+   roles are settled. If both pick the same role, neither side is assigned
+   until one of them switches — the UI prompts them to coordinate. */
 let room = {
   code: '', status: 'idle',        // idle | connecting | connected
   channel: null, myId: (crypto.randomUUID ? crypto.randomUUID() : uid('player')),
   opponentPresent: false, opponentId: null, opponentLocked: false,
-  amCodemaker: null,               // null until opponentId is known | true | false
+  myRoleChoice: null, opponentRoleChoice: null,   // null | 'codemaker' | 'codebreaker'
+  amCodemaker: null,               // null until both roles are chosen and disagree | true | false
   iWon: false, theyWon: false, revealedSecret: null,
 };
 
 /* ---------------- persistence (bot-mode sessions only — online rooms are ephemeral) ---------------- */
 function saveState(){
+  if(vsBot === null) return;                     // no mode picked yet — don't clobber a prior save
   try{
     localStorage.setItem(SAVE_KEY, JSON.stringify({ vsBot, botSecret, rows, guessCount, solved }));
   }catch(e){}
@@ -216,6 +219,12 @@ function newBotSecret(){
   resetRound();
   render();
 }
+function chooseMode(bot){
+  vsBot = bot;
+  if(bot) botSecret = randomPegCode();
+  resetRound();
+  render();
+}
 function toggleVsBot(){
   if(vsBot){
     vsBot = false;
@@ -229,17 +238,51 @@ function toggleVsBot(){
 }
 
 /* ---------------- online room ---------------- */
+/* either player can start a fresh round without leaving — resets both sides
+   and keeps the same codemaker/codebreaker roles (no need to re-flip them) */
+function requestRestart(){
+  if(vsBot || room.status !== 'connected') return;
+  room.channel?.send({ type:'broadcast', event:'restart', payload:{} });
+  handleIncomingRestart();
+}
+function handleIncomingRestart(){
+  resetRound();
+  updatePresence();
+  render();
+}
+/* either player can flip roles for the next round — both clients flip their
+   OWN current role independently (on click, and on receiving the broadcast),
+   so the two sides swap in lockstep instead of racing to the same role */
+function requestSwapRoles(){
+  if(vsBot || room.status !== 'connected') return;
+  room.channel?.send({ type:'broadcast', event:'swap', payload:{} });
+  handleIncomingSwap();
+}
+function handleIncomingSwap(){
+  if(room.myRoleChoice === 'codemaker') room.myRoleChoice = 'codebreaker';
+  else if(room.myRoleChoice === 'codebreaker') room.myRoleChoice = 'codemaker';
+  resetRound();
+  updatePresence();
+  render();
+}
 function updatePresence(){
   if(!vsBot && room.channel && room.status === 'connected'){
-    room.channel.track({ locked: mySecretLocked });
+    room.channel.track({ locked: mySecretLocked, role: room.myRoleChoice });
   }
+}
+function chooseRole(role){
+  if(vsBot || room.status !== 'connected') return;
+  room.myRoleChoice = role;
+  updatePresence();
+  render();
 }
 function connectRoom(code){
   if(!code) return;
   if(room.channel) leaveRoom(false);
   room.code = code;
   room.status = 'connecting';
-  room.opponentPresent = false; room.opponentId = null; room.opponentLocked = false; room.amCodemaker = null;
+  room.opponentPresent = false; room.opponentId = null; room.opponentLocked = false;
+  room.myRoleChoice = null; room.opponentRoleChoice = null; room.amCodemaker = null;
   resetRound();
   render();
 
@@ -250,19 +293,23 @@ function connectRoom(code){
   channel
     .on('broadcast', { event:'guess' }, ({ payload }) => handleIncomingGuess(payload))
     .on('broadcast', { event:'feedback' }, ({ payload }) => handleIncomingFeedback(payload))
+    .on('broadcast', { event:'restart' }, () => handleIncomingRestart())
+    .on('broadcast', { event:'swap' }, () => handleIncomingSwap())
     .on('presence', { event:'sync' }, () => {
       const state = channel.presenceState();
       const others = Object.keys(state).filter(k => k !== room.myId);
       room.opponentPresent = others.length > 0;
       room.opponentId = others[0] || null;
       room.opponentLocked = others.some(k => state[k].some(p => p.locked));
-      room.amCodemaker = room.opponentId ? (room.myId < room.opponentId) : null;
+      room.opponentRoleChoice = room.opponentId ? (state[room.opponentId]?.[0]?.role || null) : null;
+      room.amCodemaker = (room.myRoleChoice && room.opponentRoleChoice && room.myRoleChoice !== room.opponentRoleChoice)
+        ? (room.myRoleChoice === 'codemaker') : null;
       render();
     })
     .subscribe(status => {
       if(status === 'SUBSCRIBED'){
         room.status = 'connected';
-        channel.track({ locked: mySecretLocked });
+        channel.track({ locked: mySecretLocked, role: room.myRoleChoice });
         render();
       } else if(status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED'){
         room.status = 'idle';
@@ -275,7 +322,8 @@ function connectRoom(code){
 function leaveRoom(rerender = true){
   if(room.channel){ getSupabase().removeChannel(room.channel); room.channel = null; }
   room.status = 'idle'; room.code = '';
-  room.opponentPresent = false; room.opponentId = null; room.opponentLocked = false; room.amCodemaker = null;
+  room.opponentPresent = false; room.opponentId = null; room.opponentLocked = false;
+  room.myRoleChoice = null; room.opponentRoleChoice = null; room.amCodemaker = null;
   resetRound();
   if(rerender) render();
 }
@@ -347,9 +395,36 @@ function guessRowHTML(row, idx){
 function render(){
   saveState();
 
-  botBtn.classList.toggle('on', vsBot);
+  botBtn.style.display = vsBot === null ? 'none' : '';
+  botBtn.classList.toggle('on', !!vsBot);
   botBtn.style.background = vsBot ? 'linear-gradient(180deg,#e6f3e0,#d3e8c8)' : '';
   botBtn.title = vsBot ? 'play online instead' : 'play solo vs Chip';
+
+  if(vsBot === null){
+    subtext.innerHTML = `Play solo against Chip, or grab a room code and play a live round with someone else.`;
+    app.innerHTML = `
+      <div class="panel">
+        <div class="panelLabel">How do you want to play?</div>
+        <button class="btn" id="chooseSoloBtn" style="width:100%;">🐾 play solo vs Chip</button>
+        <p class="hintText" style="text-align:center; margin:12px 0;">— or join a partner —</p>
+        <div class="ruleRow">
+          <input type="text" id="roomInput" class="ruleInput" placeholder="room code">
+          <button class="btn small" id="joinRoomBtn">join room</button>
+        </div>
+        <p class="hintText">agree on any word with your partner, then both type it here and tap join —
+          once you're both in, each of you picks whether you're the codemaker or the codebreaker.</p>
+      </div>
+    `;
+    const chooseSoloBtn = document.getElementById('chooseSoloBtn');
+    if(chooseSoloBtn) chooseSoloBtn.onclick = () => chooseMode(true);
+    const roomInput = document.getElementById('roomInput');
+    if(roomInput){
+      const join = () => { const code = roomInput.value.trim(); if(code){ vsBot = false; connectRoom(code); } };
+      document.getElementById('joinRoomBtn').onclick = join;
+      roomInput.onkeydown = e => { if(e.key === 'Enter') join(); };
+    }
+    return;
+  }
 
   subtext.innerHTML = vsBot
     ? `Chip locked a secret ${CODE_LENGTH}-peg code in the vault, each color used at most once. Crack it in ${MAX_GUESSES} tries —
@@ -359,12 +434,14 @@ function render(){
         ? `You're the <b>codemaker</b> — lock in a secret code (each color once), then wait for your partner to try and crack it.`
         : `You're the <b>codebreaker</b> — crack your partner's code in ${MAX_GUESSES} tries.`)
     : `Play a live round with someone on another device: one of you locks a secret code (each color used at most once), the other
-       tries to crack it. Agree on a room code, both join, and we'll randomly decide who sets the code.`;
+       tries to crack it. Agree on a room code, both join, then each pick whether you're the codemaker or the codebreaker.`;
 
   const showSecretPanel = !vsBot && room.status === 'connected' && room.amCodemaker === true;
   const showGuessPanel = vsBot || (!vsBot && room.status === 'connected' && room.amCodemaker === false);
   const showHistory = vsBot || (!vsBot && room.status === 'connected' && room.amCodemaker !== null);
   const revealArr = vsBot ? (guessCount >= MAX_GUESSES && !solved ? botSecret : null) : room.revealedSecret;
+  const rolesConflict = !!(room.opponentPresent && room.myRoleChoice && room.opponentRoleChoice && room.myRoleChoice === room.opponentRoleChoice);
+  const showRolePicker = !vsBot && room.status === 'connected' && room.opponentPresent && room.amCodemaker === null;
 
   app.innerHTML = `
     <div class="panel">
@@ -384,7 +461,8 @@ function render(){
           <div class="botStatus">
             room <b>${room.code}</b> —
             ${!room.opponentPresent ? 'waiting for your partner to join…'
-              : room.amCodemaker === null ? 'sorting out roles…'
+              : rolesConflict ? `you both picked ${room.myRoleChoice === 'codemaker' ? 'codemaker' : 'codebreaker'} — one of you needs to switch`
+              : room.amCodemaker === null ? (room.myRoleChoice ? 'waiting for your partner to choose a role…' : 'choose your role below')
               : room.amCodemaker
                 ? (!mySecretLocked ? 'build your secret below, then lock it in'
                    : room.theyWon ? 'your partner cracked your code! 💔'
@@ -396,8 +474,18 @@ function render(){
                    : awaitingFeedback ? 'waiting for feedback…'
                    : 'your turn — take a guess!')}
           </div>
+          ${(room.iWon || room.theyWon) ? `
+            <button class="btn small" id="restartBtn">🔄 play again</button>
+            <button class="btn small ghost" id="swapRolesBtn">🔀 switch roles</button>
+          ` : ''}
           <button class="btn small ghost" id="leaveRoomBtn">leave room</button>
         </div>
+        ${showRolePicker ? `
+          <div class="btnRow" style="margin-top:10px;">
+            <button class="btn small ${room.myRoleChoice === 'codemaker' ? '' : 'ghost'}" id="pickCodemakerBtn">🔒 be the codemaker</button>
+            <button class="btn small ${room.myRoleChoice === 'codebreaker' ? '' : 'ghost'}" id="pickCodebreakerBtn">🔍 be the codebreaker</button>
+          </div>
+        ` : ''}
         ${room.amCodemaker !== null ? `<div class="roleBadge">${room.amCodemaker ? '🔒 you are the codemaker' : '🔍 you are the codebreaker'}</div>` : ''}
       ` : `
         <div class="panelLabel">Play online</div>
@@ -408,7 +496,7 @@ function render(){
           </button>
         </div>
         <p class="hintText">agree on any word with your partner, then both type it here and tap join —
-          we'll randomly decide who sets the code and who guesses.</p>
+          once you're both in, each of you picks whether you're the codemaker or the codebreaker.</p>
       `}
     </div>
 
@@ -496,6 +584,14 @@ function wireInputs(){
     if(room.status === 'connected'){
       const leaveBtn = document.getElementById('leaveRoomBtn');
       if(leaveBtn) leaveBtn.onclick = () => leaveRoom();
+      const restartBtn = document.getElementById('restartBtn');
+      if(restartBtn) restartBtn.onclick = requestRestart;
+      const swapRolesBtn = document.getElementById('swapRolesBtn');
+      if(swapRolesBtn) swapRolesBtn.onclick = requestSwapRoles;
+      const pickCodemakerBtn = document.getElementById('pickCodemakerBtn');
+      if(pickCodemakerBtn) pickCodemakerBtn.onclick = () => chooseRole('codemaker');
+      const pickCodebreakerBtn = document.getElementById('pickCodebreakerBtn');
+      if(pickCodebreakerBtn) pickCodebreakerBtn.onclick = () => chooseRole('codebreaker');
     } else {
       const roomInput = document.getElementById('roomInput');
       if(roomInput){
@@ -508,6 +604,7 @@ function wireInputs(){
 }
 
 function celebrateIfNeeded(){
+  if(vsBot === null) return;
   if(vsBot){
     if(solved && !wonAnnounced){
       wonAnnounced = true;
@@ -536,7 +633,7 @@ function celebrateIfNeeded(){
 
 botBtn.onclick = toggleVsBot;
 buildPack();
-setupPause(() => { vsBot ? newBotSecret() : leaveRoom(); });
+setupPause(() => { if(vsBot === null) return; vsBot ? newBotSecret() : leaveRoom(); });
 
 const saved = loadSaved();
 if(saved && saved.vsBot && Array.isArray(saved.rows) && saved.rows.length === MAX_GUESSES
@@ -548,10 +645,8 @@ if(saved && saved.vsBot && Array.isArray(saved.rows) && saved.rows.length === MA
   solved = !!saved.solved;
   wonAnnounced = solved;
   lostAnnounced = !solved && guessCount >= MAX_GUESSES;
-  render();
-} else {
-  render();
 }
+render();
 </script>
 </body>
 </html>

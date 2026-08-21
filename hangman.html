@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Hangman ♥ Gail's Game Room</title>
+<link rel="icon" type="image/png" href="build/icon.png">
+<meta name="theme-color" content="#f7f0e2">
+<link rel="stylesheet" href="shared.css">
+<style>
+  body{ position:relative; display:flex; flex-direction:column; align-items:center; gap:10px; padding:56px 10px 150px; }
+  #app{ width:min(94vw, 480px); display:flex; flex-direction:column; gap:12px; }
+
+  /* the guessed-letter keyboard + word history can run taller than the viewport,
+     so the pack must scroll with the page instead of staying fixed. see luckynumber.html. */
+  #pack{ position:absolute; }
+
+  .panel{
+    background:var(--card); border:3px solid var(--ink); border-radius:16px;
+    padding:14px 16px; box-shadow:3px 4px 0 rgba(92,74,61,.2);
+  }
+  .panelLabel{ font-size:14px; letter-spacing:.03em; color:var(--ink-soft); margin-bottom:8px; }
+
+  .btn.small{ font-size:15px; padding:6px 16px; }
+  .btn.ghost{ color:var(--ink-soft); background:transparent; box-shadow:none; border-style:dashed; }
+  .btnRow{ display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
+
+  .ruleRow{ display:flex; gap:8px; }
+  .ruleInput{
+    flex:1; background:#fffdf6; border:2px solid #e0d5c2; border-radius:9px;
+    color:var(--ink); padding:9px 12px; font-family:inherit; font-size:15px; outline:none;
+    text-transform:uppercase; letter-spacing:.04em;
+  }
+  .ruleInput:focus{ border-color:var(--blue); }
+  .hintText{ margin:8px 0 0; font-size:11.5px; color:var(--ink-soft); line-height:1.6; }
+
+  .roleBadge{
+    display:inline-block; margin-top:8px; font-size:13px; padding:4px 12px; border-radius:999px;
+    background:linear-gradient(180deg,#fffdf6,#f8eed8); border:2px solid var(--ink); color:var(--ink);
+  }
+
+  .botBlock{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .botStatus{ font-size:13.5px; color:var(--ink-soft); flex:1; min-width:140px; }
+
+  .figureWrap{ display:flex; justify-content:center; padding:6px 0 2px; }
+
+  .wordRow{ display:flex; justify-content:center; flex-wrap:wrap; gap:6px; margin:10px 0 14px; }
+  .letterTile{
+    width:34px; height:42px; border-radius:8px; background:#fdf6e6; border:2.5px solid var(--yellow);
+    display:flex; align-items:center; justify-content:center;
+    font-size:19px; font-weight:700; color:var(--ink); text-transform:uppercase;
+  }
+  .letterTile.blank{ background:transparent; border-color:#e0d5c2; border-style:dashed; }
+
+  #kb{ display:flex; flex-direction:column; gap:6px; align-items:center; }
+  .krow{ display:flex; gap:5px; }
+  .key{
+    min-width:28px; padding:11px 7px; border-radius:8px; border:2px solid rgba(92,74,61,.35);
+    background:var(--card); font-family:inherit; font-size:14px; color:var(--ink); cursor:pointer;
+  }
+  .key.hit{ background:var(--green); border-color:var(--green); }
+  .key.miss{ background:#ddd2c0; border-color:#ddd2c0; color:#8a7c6b; }
+  .key:disabled{ cursor:default; opacity:.6; }
+  .key:not(:disabled):active{ transform:translateY(2px); }
+
+  @media (max-width:380px){
+    .letterTile{ width:28px; height:36px; font-size:16px; }
+    .key{ min-width:24px; padding:9px 5px; font-size:12.5px; }
+  }
+
+  /* desktop: a bit more breathing room — board/keyboard stay stacked (tightly
+     coupled widths, like Wordle) rather than forced into an awkward 2-column split */
+  @media (min-width:820px){
+    #app{ width:min(90vw, 620px); }
+    .letterTile{ width:42px; height:52px; font-size:23px; }
+    .key{ min-width:34px; padding:13px 10px; font-size:15px; }
+  }
+</style>
+</head>
+<body>
+
+<button class="roundBtn right" id="botBtn" title="play online instead">🐾</button>
+<h1 class="bigtitle" style="font-size:34px;">Hangman</h1>
+<div class="sub tiny" id="subtext" style="max-width:min(94vw,480px);"></div>
+
+<div id="app"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+const MAX_WRONG = 6;
+const MIN_WORD_LEN = 5;
+const SAVE_KEY = 'hangman-save';
+
+/* Archie's word bank — no need to dictionary-check these, they're all real words
+   we picked ourselves. Solo mode plays instantly, no network required. */
+const ARCHIE_WORDS = [
+  'husky','archie','blizzard','snowbound','paws','collar','howling','sled','arctic',
+  'wanderer','campfire','lantern','saddle','horizon','prairie','canyon','desert','trail',
+  'wildfire','thunder','whistle','harmony','sunrise','sunset','blanket','pillow','teacup',
+  'biscuit','pancake','lavender','sparkle','feather','journey','treasure','compass',
+  'mountain','valley','meadow','rainbow','starlight','moonlight','driftwood','seashell',
+  'pebble','autumn','winter','summer','spring','garden','orchard','bakery','cabin',
+  'fireplace','sweater','mittens','stagecoach','sheriff','ranch','rodeo','wrangler'
+];
+function randomArchieWord(){ return ARCHIE_WORDS[Math.floor(Math.random() * ARCHIE_WORDS.length)]; }
+
+function maskedWord(word, results){ return [...word].map(ch => results[ch] === 'hit' ? ch : null); }
+function isSolved(word, results){ return [...new Set(word)].every(ch => results[ch] === 'hit'); }
+
+/* Is this actually a word? Same approach as Wordle: check the Free Dictionary API,
+   and if there's no internet (or it's a Dutch word / name / something the English
+   dictionary just doesn't know) we don't hard-block — the chooser can lock it in
+   anyway. The point is a friendly nudge against keyboard-mashing, not a hard gate. */
+async function isRealWord(word){
+  try{
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`);
+    return res.ok;
+  }catch(e){
+    return true;
+  }
+}
+
+let vsBot = null;                              // null until the player picks solo vs online
+let botWord = randomArchieWord();
+let wordInput = '';                            // chooser's draft word (online only)
+let checkingWord = false;
+let wordCheckResult = null;                    // null | 'unverified'
+let secretWord = '';                            // chooser's locked word (online, chooser role only)
+let mySecretLocked = false;
+let guesserMasked = [];                         // online guesser's view of the word-so-far: (letter|null)[]
+let letterResults = {};                         // letter -> 'hit' | 'miss'
+let wrongCount = 0;
+let solved = false;
+let wonAnnounced = false, lostAnnounced = false;
+let awaitingGuessResult = false;
+let lastGuessedLetter = null;
+
+/* online duel — same Supabase Realtime pattern as Cipher Duel / Code Vault. Once
+   both players are present, each one picks whether they want to be the word-chooser
+   or the guesser (broadcast via presence); once the two picks disagree, roles are
+   settled. If both pick the same role, neither side is assigned until one switches. */
+let room = {
+  code: '', status: 'idle', channel: null, myId: (crypto.randomUUID ? crypto.randomUUID() : uid('player')),
+  opponentPresent: false, opponentId: null, opponentLocked: false,
+  myRoleChoice: null, opponentRoleChoice: null,   // null | 'chooser' | 'guesser'
+  amChooser: null,                 // null until both roles are chosen and disagree | true | false
+  iWon: false, theyWon: false, revealedWord: null,
+};
+
+/* ---------------- persistence (bot-mode sessions only — online rooms are ephemeral) ---------------- */
+function saveState(){
+  if(vsBot === null) return;                     // no mode picked yet — don't clobber a prior save
+  try{
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ vsBot, botWord, letterResults, wrongCount, solved }));
+  }catch(e){}
+}
+function loadSaved(){
+  try{ const raw = localStorage.getItem(SAVE_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+
+/* ---------------- shared round reset ---------------- */
+function resetRound(){
+  wordInput = ''; checkingWord = false; wordCheckResult = null;
+  secretWord = ''; mySecretLocked = false; guesserMasked = [];
+  letterResults = {}; wrongCount = 0; solved = false;
+  wonAnnounced = false; lostAnnounced = false; awaitingGuessResult = false; lastGuessedLetter = null;
+  room.iWon = false; room.theyWon = false; room.revealedWord = null;
+}
+
+/* ---------------- chooser actions (online only) ---------------- */
+function updateWordInput(val){
+  wordInput = val.replace(/[^a-zA-Z]/g, '').toLowerCase().slice(0, 20);
+  wordCheckResult = null;
+  render();
+}
+async function checkAndLock(){
+  if(vsBot || mySecretLocked || wordInput.length < MIN_WORD_LEN || checkingWord) return;
+  checkingWord = true;
+  render();
+  const valid = await isRealWord(wordInput);
+  checkingWord = false;
+  if(valid){ finalizeLock(); } else { wordCheckResult = 'unverified'; render(); }
+}
+function lockAnyway(){
+  if(vsBot || mySecretLocked || wordInput.length < MIN_WORD_LEN) return;
+  finalizeLock();
+}
+function finalizeLock(){
+  secretWord = wordInput;
+  mySecretLocked = true;
+  wordCheckResult = null;
+  letterResults = {}; wrongCount = 0;
+  ding();
+  updatePresence();
+  room.channel?.send({
+    type:'broadcast', event:'result',
+    payload:{ maskedWord: maskedWord(secretWord, {}), letterResults:{}, wrongCount:0, solved:false }
+  });
+  render();
+}
+
+/* ---------------- guessing (bot mode + online guesser) ---------------- */
+function canGuess(){
+  if(solved || wrongCount >= MAX_WRONG) return false;
+  if(vsBot) return true;
+  if(room.status !== 'connected' || room.amChooser !== false) return false;
+  if(!room.opponentLocked || awaitingGuessResult) return false;
+  return true;
+}
+function pressLetter(letter){
+  if(!canGuess()) return;
+  letter = letter.toLowerCase();
+  if(letterResults[letter]) return;
+  if(vsBot){
+    const hit = botWord.includes(letter);
+    letterResults = { ...letterResults, [letter]: hit ? 'hit' : 'miss' };
+    if(hit) ding(); else { wrongCount++; thud(); }
+    if(isSolved(botWord, letterResults)) solved = true;
+  } else {
+    awaitingGuessResult = true;
+    lastGuessedLetter = letter;
+    room.channel?.send({ type:'broadcast', event:'guess', payload:{ letter } });
+  }
+  render();
+}
+function newBotWord(){
+  botWord = randomArchieWord();
+  resetRound();
+  render();
+}
+function chooseMode(bot){
+  vsBot = bot;
+  if(bot) botWord = randomArchieWord();
+  resetRound();
+  render();
+}
+function toggleVsBot(){
+  if(vsBot){
+    vsBot = false;
+  } else {
+    leaveRoom(false);
+    vsBot = true;
+    botWord = randomArchieWord();
+  }
+  resetRound();
+  render();
+}
+
+/* ---------------- online room ---------------- */
+/* either player can start a fresh round without leaving — resets both sides
+   and keeps the same chooser/guesser roles (no need to re-decide them) */
+function requestRestart(){
+  if(vsBot || room.status !== 'connected') return;
+  room.channel?.send({ type:'broadcast', event:'restart', payload:{} });
+  handleIncomingRestart();
+}
+function handleIncomingRestart(){
+  resetRound();
+  updatePresence();
+  render();
+}
+/* either player can flip roles for the next round — both clients flip their
+   OWN current role independently (on click, and on receiving the broadcast),
+   so the two sides swap in lockstep instead of racing to the same role */
+function requestSwapRoles(){
+  if(vsBot || room.status !== 'connected') return;
+  room.channel?.send({ type:'broadcast', event:'swap', payload:{} });
+  handleIncomingSwap();
+}
+function handleIncomingSwap(){
+  if(room.myRoleChoice === 'chooser') room.myRoleChoice = 'guesser';
+  else if(room.myRoleChoice === 'guesser') room.myRoleChoice = 'chooser';
+  resetRound();
+  updatePresence();
+  render();
+}
+function updatePresence(){
+  if(!vsBot && room.channel && room.status === 'connected'){
+    room.channel.track({ locked: mySecretLocked, role: room.myRoleChoice });
+  }
+}
+function chooseRole(role){
+  if(vsBot || room.status !== 'connected') return;
+  room.myRoleChoice = role;
+  updatePresence();
+  render();
+}
+function connectRoom(code){
+  if(!code) return;
+  if(room.channel) leaveRoom(false);
+  room.code = code;
+  room.status = 'connecting';
+  room.opponentPresent = false; room.opponentId = null; room.opponentLocked = false;
+  room.myRoleChoice = null; room.opponentRoleChoice = null; room.amChooser = null;
+  resetRound();
+  render();
+
+  const channel = getSupabase().channel(`hangman:${code}`, {
+    config: { broadcast: { self:false }, presence: { key: room.myId } }
+  });
+
+  channel
+    .on('broadcast', { event:'guess' }, ({ payload }) => handleIncomingGuess(payload))
+    .on('broadcast', { event:'result' }, ({ payload }) => handleIncomingResult(payload))
+    .on('broadcast', { event:'restart' }, () => handleIncomingRestart())
+    .on('broadcast', { event:'swap' }, () => handleIncomingSwap())
+    .on('presence', { event:'sync' }, () => {
+      const state = channel.presenceState();
+      const others = Object.keys(state).filter(k => k !== room.myId);
+      room.opponentPresent = others.length > 0;
+      room.opponentId = others[0] || null;
+      room.opponentLocked = others.some(k => state[k].some(p => p.locked));
+      room.opponentRoleChoice = room.opponentId ? (state[room.opponentId]?.[0]?.role || null) : null;
+      room.amChooser = (room.myRoleChoice && room.opponentRoleChoice && room.myRoleChoice !== room.opponentRoleChoice)
+        ? (room.myRoleChoice === 'chooser') : null;
+      render();
+    })
+    .subscribe(status => {
+      if(status === 'SUBSCRIBED'){
+        room.status = 'connected';
+        channel.track({ locked: mySecretLocked, role: room.myRoleChoice });
+        render();
+      } else if(status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED'){
+        room.status = 'idle';
+        render();
+      }
+    });
+
+  room.channel = channel;
+}
+function leaveRoom(rerender = true){
+  if(room.channel){ getSupabase().removeChannel(room.channel); room.channel = null; }
+  room.status = 'idle'; room.code = '';
+  room.opponentPresent = false; room.opponentId = null; room.opponentLocked = false;
+  room.myRoleChoice = null; room.opponentRoleChoice = null; room.amChooser = null;
+  resetRound();
+  if(rerender) render();
+}
+/* chooser side: score the incoming letter against MY word, broadcast the full state back */
+function handleIncomingGuess({ letter }){
+  if(!secretWord || letterResults[letter]) return;
+  const hit = secretWord.includes(letter);
+  letterResults = { ...letterResults, [letter]: hit ? 'hit' : 'miss' };
+  if(!hit) wrongCount++;
+  const solvedNow = isSolved(secretWord, letterResults);
+  const lostNow = !solvedNow && wrongCount >= MAX_WRONG;
+  const payload = {
+    maskedWord: maskedWord(secretWord, letterResults),
+    letterResults, wrongCount, solved: solvedNow
+  };
+  if(lostNow) payload.revealedWord = secretWord;
+  room.channel?.send({ type:'broadcast', event:'result', payload });
+  if(solvedNow) room.theyWon = true;             // opponent (guesser) cracked MY word
+  if(lostNow) room.iWon = true;                   // my word survived
+  render();
+}
+/* guesser side: the authoritative state after my (or the initial post-lock) guess */
+function handleIncomingResult({ maskedWord: mw, letterResults: lr, wrongCount: wc, solved: isSolvedNow, revealedWord }){
+  guesserMasked = mw || [];
+  letterResults = lr || {};
+  wrongCount = wc || 0;
+  const wasAwaiting = awaitingGuessResult;
+  awaitingGuessResult = false;
+  if(wasAwaiting && lastGuessedLetter){
+    if(letterResults[lastGuessedLetter] === 'hit') ding(); else thud();
+  }
+  if(isSolvedNow){ solved = true; room.iWon = true; }
+  if(revealedWord){ room.revealedWord = revealedWord; room.theyWon = true; }
+  render();
+}
+
+/* ---------------- rendering ---------------- */
+const app = document.getElementById('app');
+const subtext = document.getElementById('subtext');
+const botBtn = document.getElementById('botBtn');
+
+/* a cowboy strung up one wrong guess at a time — the gallows post is free,
+   then hat / head / vest+bandana / arms / legs / boots, one per wrong guess */
+function cowboySVG(wrong){
+  const s = n => wrong >= n;
+  return `
+  <svg width="160" height="170" viewBox="0 0 160 170">
+    <line x1="8" y1="160" x2="152" y2="160" stroke="#c9a876" stroke-width="4" stroke-linecap="round"/>
+    <line x1="30" y1="160" x2="30" y2="15" stroke="#a9805a" stroke-width="7" stroke-linecap="round"/>
+    <line x1="30" y1="15" x2="95" y2="15" stroke="#a9805a" stroke-width="7" stroke-linecap="round"/>
+    <line x1="30" y1="36" x2="52" y2="15" stroke="#a9805a" stroke-width="5" stroke-linecap="round"/>
+    <line x1="95" y1="15" x2="95" y2="${s(2) ? 33 : 50}" stroke="#8a7256" stroke-width="2.5"/>
+
+    ${s(2) ? `
+      <circle cx="95" cy="46" r="13" fill="#f0c9a0" stroke="#5c4a3d" stroke-width="1.5"/>
+      <circle cx="90" cy="46" r="1.6" fill="#5c4a3d"/><circle cx="100" cy="46" r="1.6" fill="#5c4a3d"/>
+      <path d="M89 52 Q95 56 101 52" stroke="#5c4a3d" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    ` : ''}
+
+    ${s(1) ? `
+      <ellipse cx="95" cy="${s(2) ? 35 : 40}" rx="20" ry="5" fill="#a9714a" stroke="#5c4a3d" stroke-width="1.5"/>
+      <path d="M84 ${s(2) ? 33 : 38} Q95 ${s(2) ? 13 : 18} 106 ${s(2) ? 33 : 38} Z" fill="#c48b5e" stroke="#5c4a3d" stroke-width="1.5"/>
+    ` : ''}
+
+    ${s(3) ? `
+      <path d="M87 58 L103 58 L95 66 Z" fill="#e8a9b0" stroke="#5c4a3d" stroke-width="1.2"/>
+      <rect x="80" y="59" width="30" height="34" rx="8" fill="#cbb3e0" stroke="#5c4a3d" stroke-width="1.5"/>
+      <path d="M95 59 L95 93" stroke="#5c4a3d" stroke-width="1.2"/>
+    ` : ''}
+
+    ${s(4) ? `
+      <line x1="80" y1="66" x2="62" y2="82" stroke="#f0c9a0" stroke-width="6" stroke-linecap="round"/>
+      <line x1="110" y1="66" x2="128" y2="82" stroke="#f0c9a0" stroke-width="6" stroke-linecap="round"/>
+    ` : ''}
+
+    ${s(5) ? `
+      <line x1="88" y1="93" x2="80" y2="128" stroke="#7d92b8" stroke-width="7" stroke-linecap="round"/>
+      <line x1="102" y1="93" x2="110" y2="128" stroke="#7d92b8" stroke-width="7" stroke-linecap="round"/>
+    ` : ''}
+
+    ${s(6) ? `
+      <path d="M72 128 L80 128 L84 138 L68 138 Z" fill="#8a5a3a" stroke="#5c4a3d" stroke-width="1.3"/>
+      <path d="M110 128 L118 128 L122 138 L106 138 Z" fill="#8a5a3a" stroke="#5c4a3d" stroke-width="1.3"/>
+    ` : ''}
+  </svg>`;
+}
+
+function activeWordForDisplay(){
+  if(vsBot){
+    const lost = !solved && wrongCount >= MAX_WRONG;
+    return { display: lost ? [...botWord] : maskedWord(botWord, letterResults), length: botWord.length };
+  }
+  if(room.amChooser === true) return { display: [...secretWord], length: secretWord.length };
+  if(room.revealedWord) return { display: [...room.revealedWord], length: room.revealedWord.length };
+  return { display: guesserMasked, length: guesserMasked.length };
+}
+
+function wordRowHTML(){
+  const { display, length } = activeWordForDisplay();
+  return `<div class="wordRow">${Array.from({length}).map((_,i) => {
+    const ch = display[i];
+    return ch ? `<div class="letterTile">${ch}</div>` : `<div class="letterTile blank"></div>`;
+  }).join('')}</div>`;
+}
+
+function keyboardHTML(){
+  const rows = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
+  const interactive = canGuess();
+  return `<div id="kb">${rows.map(r => `<div class="krow">${[...r].map(k => {
+    const lower = k.toLowerCase();
+    const state = letterResults[lower] || '';
+    return `<button class="key ${state}" data-letter="${lower}" ${(!interactive || state) ? 'disabled' : ''}>${k}</button>`;
+  }).join('')}</div>`).join('')}</div>`;
+}
+
+function render(){
+  saveState();
+
+  botBtn.style.display = vsBot === null ? 'none' : '';
+  botBtn.classList.toggle('on', !!vsBot);
+  botBtn.style.background = vsBot ? 'linear-gradient(180deg,#e6f3e0,#d3e8c8)' : '';
+  botBtn.title = vsBot ? 'play online instead' : 'play solo vs Archie';
+
+  if(vsBot === null){
+    subtext.innerHTML = `Play solo against Archie, or grab a room code and play a live round with someone else.`;
+    app.innerHTML = `
+      <div class="panel">
+        <div class="panelLabel">How do you want to play?</div>
+        <button class="btn" id="chooseSoloBtn" style="width:100%;">🐾 play solo vs Archie</button>
+        <p class="hintText" style="text-align:center; margin:12px 0;">— or join a partner —</p>
+        <div class="ruleRow">
+          <input type="text" id="roomInput" class="ruleInput" placeholder="room code" style="text-transform:none;">
+          <button class="btn small" id="joinRoomBtn">join room</button>
+        </div>
+        <p class="hintText">agree on any word with your partner, then both type it here and tap join —
+          once you're both in, each of you picks whether you're the word-chooser or the guesser.</p>
+      </div>
+    `;
+    const chooseSoloBtn = document.getElementById('chooseSoloBtn');
+    if(chooseSoloBtn) chooseSoloBtn.onclick = () => chooseMode(true);
+    const roomInput = document.getElementById('roomInput');
+    if(roomInput){
+      const join = () => { const code = roomInput.value.trim(); if(code){ vsBot = false; connectRoom(code); } };
+      document.getElementById('joinRoomBtn').onclick = join;
+      roomInput.onkeydown = e => { if(e.key === 'Enter') join(); };
+    }
+    return;
+  }
+
+  subtext.innerHTML = vsBot
+    ? `Archie picked a secret word — guess the letters before the cowboy's fully strung up (${MAX_WRONG} wrong guesses).`
+    : (room.status === 'connected' && room.amChooser !== null)
+    ? (room.amChooser
+        ? `You're the <b>word-chooser</b> — pick a word (${MIN_WORD_LEN}+ letters), then wait for your partner to guess it.`
+        : `You're the <b>guesser</b> — crack your partner's word before the cowboy's fully strung up.`)
+    : `Play a live round with someone on another device: one of you picks a secret word, the other guesses it letter
+       by letter. Agree on a room code, both join, then each pick whether you're the word-chooser or the guesser.`;
+
+  const showWordInput = !vsBot && room.status === 'connected' && room.amChooser === true && !mySecretLocked;
+  const showBoard = vsBot || (!vsBot && room.status === 'connected' && room.amChooser !== null);
+  const wrongLeft = MAX_WRONG - wrongCount;
+  const rolesConflict = !!(room.opponentPresent && room.myRoleChoice && room.opponentRoleChoice && room.myRoleChoice === room.opponentRoleChoice);
+  const showRolePicker = !vsBot && room.status === 'connected' && room.opponentPresent && room.amChooser === null;
+
+  app.innerHTML = `
+    <div class="panel">
+      ${vsBot ? `
+        <div class="panelLabel">Guess Archie's word</div>
+        <div class="botBlock">
+          <div class="botStatus">
+            ${solved ? `got it — <b>${botWord.toUpperCase()}</b>! ♥`
+              : wrongCount >= MAX_WRONG ? `out of guesses — the word was <b>${botWord.toUpperCase()}</b>`
+              : `${wrongLeft} wrong guess${wrongLeft === 1 ? '' : 'es'} left`}
+          </div>
+          <button class="btn small ghost" id="newBotBtn">🔀 new word</button>
+        </div>
+      ` : room.status === 'connected' ? `
+        <div class="panelLabel">Play online</div>
+        <div class="botBlock">
+          <div class="botStatus">
+            room <b>${room.code}</b> —
+            ${!room.opponentPresent ? 'waiting for your partner to join…'
+              : rolesConflict ? `you both picked ${room.myRoleChoice === 'chooser' ? 'word-chooser' : 'guesser'} — one of you needs to switch`
+              : room.amChooser === null ? (room.myRoleChoice ? 'waiting for your partner to choose a role…' : 'choose your role below')
+              : room.amChooser
+                ? (!mySecretLocked ? 'pick a word below, then lock it in'
+                   : room.theyWon ? 'your partner guessed it! 🤠'
+                   : room.iWon ? 'your word survived! 🛡️'
+                   : 'your partner is guessing…')
+                : (!room.opponentLocked ? "waiting for your partner to choose their word…"
+                   : room.iWon ? 'you got it! ♥'
+                   : room.theyWon ? "out of guesses — word revealed below 👀"
+                   : awaitingGuessResult ? 'checking that letter…'
+                   : `${wrongLeft} wrong guess${wrongLeft === 1 ? '' : 'es'} left`)}
+          </div>
+          ${(room.iWon || room.theyWon) ? `
+            <button class="btn small" id="restartBtn">🔄 play again</button>
+            <button class="btn small ghost" id="swapRolesBtn">🔀 switch roles</button>
+          ` : ''}
+          <button class="btn small ghost" id="leaveRoomBtn">leave room</button>
+        </div>
+        ${showRolePicker ? `
+          <div class="btnRow" style="margin-top:10px;">
+            <button class="btn small ${room.myRoleChoice === 'chooser' ? '' : 'ghost'}" id="pickChooserBtn">📝 be the word-chooser</button>
+            <button class="btn small ${room.myRoleChoice === 'guesser' ? '' : 'ghost'}" id="pickGuesserBtn">🤠 be the guesser</button>
+          </div>
+        ` : ''}
+        ${room.amChooser !== null ? `<div class="roleBadge">${room.amChooser ? '📝 you are the word-chooser' : '🤠 you are the guesser'}</div>` : ''}
+      ` : `
+        <div class="panelLabel">Play online</div>
+        <div class="ruleRow">
+          <input type="text" id="roomInput" class="ruleInput" placeholder="room code" style="text-transform:none;">
+          <button class="btn small" id="joinRoomBtn" ${room.status === 'connecting' ? 'disabled' : ''}>
+            ${room.status === 'connecting' ? 'connecting…' : 'join room'}
+          </button>
+        </div>
+        <p class="hintText">agree on any word with your partner, then both type it here and tap join —
+          once you're both in, each of you picks whether you're the word-chooser or the guesser.</p>
+      `}
+    </div>
+
+    ${showWordInput ? `
+      <div class="panel">
+        <div class="panelLabel">Your secret word</div>
+        <div class="ruleRow">
+          <input type="text" id="wordInput" class="ruleInput" placeholder="${MIN_WORD_LEN}+ letters" value="${wordInput}">
+          <button class="btn small" id="checkLockBtn" ${(wordInput.length < MIN_WORD_LEN || checkingWord) ? 'disabled' : ''}>
+            ${checkingWord ? 'checking…' : 'check & lock in'}
+          </button>
+        </div>
+        ${wordCheckResult === 'unverified' ? `
+          <p class="hintText">couldn't verify "${wordInput}" as a real English word — could be a name, a Dutch word, or
+            just obscure to the dictionary. <button class="clearLink" id="lockAnywayBtn" style="background:none;border:none;text-decoration:underline;color:var(--ink-soft);cursor:pointer;font-family:inherit;font-size:11.5px;padding:0;">lock it in anyway</button></p>
+        ` : `<p class="hintText">letters only, ${MIN_WORD_LEN}+ of them. We'll check it's a real word before locking in.</p>`}
+      </div>
+    ` : ''}
+
+    ${showBoard ? `
+      <div class="panel">
+        <div class="figureWrap">${cowboySVG(wrongCount)}</div>
+        ${wordRowHTML()}
+        ${keyboardHTML()}
+      </div>
+    ` : ''}
+  `;
+
+  wireInputs();
+  celebrateIfNeeded();
+}
+
+function wireInputs(){
+  const wordInputEl = document.getElementById('wordInput');
+  if(wordInputEl){
+    wordInputEl.oninput = e => updateWordInput(e.target.value);
+    wordInputEl.onkeydown = e => { if(e.key === 'Enter') checkAndLock(); };
+  }
+  const checkLockBtn = document.getElementById('checkLockBtn');
+  if(checkLockBtn) checkLockBtn.onclick = checkAndLock;
+  const lockAnywayBtn = document.getElementById('lockAnywayBtn');
+  if(lockAnywayBtn) lockAnywayBtn.onclick = lockAnyway;
+
+  const newBotBtn = document.getElementById('newBotBtn');
+  if(newBotBtn) newBotBtn.onclick = newBotWord;
+
+  if(!vsBot){
+    if(room.status === 'connected'){
+      const leaveBtn = document.getElementById('leaveRoomBtn');
+      if(leaveBtn) leaveBtn.onclick = () => leaveRoom();
+      const restartBtn = document.getElementById('restartBtn');
+      if(restartBtn) restartBtn.onclick = requestRestart;
+      const swapRolesBtn = document.getElementById('swapRolesBtn');
+      if(swapRolesBtn) swapRolesBtn.onclick = requestSwapRoles;
+      const pickChooserBtn = document.getElementById('pickChooserBtn');
+      if(pickChooserBtn) pickChooserBtn.onclick = () => chooseRole('chooser');
+      const pickGuesserBtn = document.getElementById('pickGuesserBtn');
+      if(pickGuesserBtn) pickGuesserBtn.onclick = () => chooseRole('guesser');
+    } else {
+      const roomInput = document.getElementById('roomInput');
+      if(roomInput){
+        const join = () => { const code = roomInput.value.trim(); if(code) connectRoom(code); };
+        document.getElementById('joinRoomBtn').onclick = join;
+        roomInput.onkeydown = e => { if(e.key === 'Enter') join(); };
+      }
+    }
+  }
+
+  app.querySelectorAll('[data-letter]').forEach(btn => {
+    btn.onclick = () => pressLetter(btn.dataset.letter);
+  });
+}
+
+/* real keyboard works too, while a guess is actually possible */
+addEventListener('keydown', e => {
+  if(/^[a-zA-Z]$/.test(e.key)) pressLetter(e.key);
+});
+
+function celebrateIfNeeded(){
+  if(vsBot === null) return;
+  if(vsBot){
+    if(solved && !wonAnnounced){
+      wonAnnounced = true;
+      fanfare(); awoo();
+      sparkEl(document.querySelector('.wordRow'), 20);
+      showBanner(`got it — ${botWord.toUpperCase()}! ♥`, 2600);
+    }
+    if(!solved && wrongCount >= MAX_WRONG && !lostAnnounced){
+      lostAnnounced = true;
+      thud(); awoo();
+      showBanner(`Archie's word was ${botWord.toUpperCase()} 🤠`, 2600);
+    }
+  } else {
+    if(room.iWon && !wonAnnounced){
+      wonAnnounced = true;
+      fanfare(); awoo();
+      showBanner(room.amChooser ? 'your word survived! 🛡️' : 'you got it! ♥', 2600);
+    }
+    if(room.theyWon && !lostAnnounced){
+      lostAnnounced = true;
+      thud(); awoo();
+      showBanner(room.amChooser ? 'your partner guessed it! 🤠' : `out of guesses — it was ${(room.revealedWord || '').toUpperCase()}`, 2600);
+    }
+  }
+}
+
+botBtn.onclick = toggleVsBot;
+buildPack();
+setupPause(() => { if(vsBot === null) return; vsBot ? newBotWord() : leaveRoom(); });
+
+const saved = loadSaved();
+if(saved && saved.vsBot && typeof saved.botWord === 'string' && saved.botWord.length >= 4){
+  vsBot = true;
+  botWord = saved.botWord;
+  letterResults = saved.letterResults || {};
+  wrongCount = saved.wrongCount || 0;
+  solved = !!saved.solved;
+  wonAnnounced = solved;
+  lostAnnounced = !solved && wrongCount >= MAX_WRONG;
+}
+render();
+</script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 {
   "name": "Gail's Game Room",
   "short_name": "Game Room",
-  "description": "Seven cozy games for Gail, starring Archie, Ice & Chip",
+  "description": "Eight cozy games for Gail, starring Archie, Ice & Chip",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#f7f0e2",

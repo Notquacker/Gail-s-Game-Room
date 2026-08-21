@@ -116,6 +116,19 @@ const icoVault = `
     <circle cx="44" cy="44" r="4" fill="#3a3330"/>
     <circle cx="56" cy="44" r="4" fill="#fffdf6" stroke="#3a3330" stroke-width="1.4"/>
   </svg>`;
+const icoHangman = `
+  <svg width="72" height="64" viewBox="0 0 72 64">
+    <line x1="10" y1="58" x2="46" y2="58" stroke="#a9805a" stroke-width="4" stroke-linecap="round"/>
+    <line x1="18" y1="58" x2="18" y2="8" stroke="#a9805a" stroke-width="4" stroke-linecap="round"/>
+    <line x1="18" y1="8" x2="42" y2="8" stroke="#a9805a" stroke-width="4" stroke-linecap="round"/>
+    <line x1="42" y1="8" x2="42" y2="18" stroke="#8a7256" stroke-width="1.8"/>
+    <circle cx="42" cy="27" r="8.5" fill="#f0c9a0" stroke="#5c4a3d" stroke-width="1.4"/>
+    <ellipse cx="42" cy="21" rx="12" ry="3" fill="#a9714a" stroke="#5c4a3d" stroke-width="1.2"/>
+    <path d="M34 20 Q42 8 50 20 Z" fill="#c48b5e" stroke="#5c4a3d" stroke-width="1.2"/>
+    <line x1="42" y1="35.5" x2="42" y2="50" stroke="#7d92b8" stroke-width="4" stroke-linecap="round"/>
+    <line x1="42" y1="40" x2="33" y2="46" stroke="#7d92b8" stroke-width="3.5" stroke-linecap="round"/>
+    <line x1="42" y1="40" x2="51" y2="46" stroke="#7d92b8" stroke-width="3.5" stroke-linecap="round"/>
+  </svg>`;
 
 const GAMES = [
   { href:'tidier.html',      ico:icoTidier, nm:'A Little Tidier', tag:'drag things until they feel just right' },
@@ -125,6 +138,7 @@ const GAMES = [
   { href:'cipherduel.html',  ico:icoCipher, nm:'Cipher Duel',     tag:'crack the code before Ice does' },
   { href:'luckynumber.html', ico:icoLucky,  nm:'Lucky Number',    tag:'narrow 100 (or 1000!) numbers down to the one' },
   { href:'codevault.html',   ico:icoVault,  nm:'Code Vault',      tag:'crack the peg code — solo vs Chip or live online' },
+  { href:'hangman.html',     ico:icoHangman,nm:'Hangman',         tag:'guess the word — solo vs Archie or live online' },
 ];
 
 const room = document.getElementById('room');
@@ -146,7 +160,7 @@ function showHome(){
   history.replaceState(null, '', location.pathname);
   room.innerHTML = bunting() + `
     <div class="bigtitle" style="font-size:52px;">Gail's Game Room</div>
-    <div class="sub">seven cozy games, one happy pup pile ♥</div>
+    <div class="sub">eight cozy games, one happy pup pile ♥</div>
     <button class="btn" id="enterBtn">come on in </button>`;
   addTwinkles(8);
   document.getElementById('enterBtn').onclick = showGames;

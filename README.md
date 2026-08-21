@@ -2,7 +2,7 @@
 
 # Gail's Game Room ♥
 
-*Seven cozy games made with love for **Gail**, starring our three babies —
+*Eight cozy games made with love for **Gail**, starring our three babies —
 **Archie**, **Ice** & **Chip** the huskies.*
 
 | Game | What it is |
@@ -14,6 +14,7 @@
 |  **Cipher Duel** | crack a hidden 6-digit code live online with a partner on another device — lock in your secret, then take alternating turns, with a coin flip deciding who guesses first — or go solo against **Ice** |
 |  **Lucky Number** | type logic rules (`even`, `>40`, `cijfersom<=7`, `tussen20-30`, `dubbelecijfers`, …) to narrow a grid of numbers down to one — play 1–100 or 1–1000 |
 |  **Code Vault** | classic Mastermind: crack a hidden 4-peg code (each color used at most once) in 10 tries using black/white peg feedback — solo against **Chip**, or online where one partner locks the code and the other cracks it |
+|  **Hangman** | guess the word one letter at a time before a cowboy gets fully strung up — a Wordle-style keyboard tracks every letter you've tried. Solo against **Archie**, or online where one partner picks a real word (checked live against a dictionary) and the other guesses it |
 
 Open the game, land on a **home screen**, pick a game from the **game room** menu, and every
 game shares the same pastel look, pause menu, and husky supervision from the corner.
@@ -121,6 +122,17 @@ which, so it's real deduction. Roles are assigned automatically when you both jo
 button switches to solo mode against **Chip**, who's already locked in a random code for you to
 crack — no setup needed, just start guessing. Solo sessions **auto-save**.
 
+###  Hangman
+
+Guess the word one letter at a time — a Wordle-style on-screen (and real) keyboard shows every
+letter you've tried, green for a hit and grey for a miss. Guess wrong too many times and the
+cowboy ends up fully strung up from the gallows. Online, one player picks a secret word (5+
+letters) — checked live against a dictionary before it locks in, though an unrecognized word
+(a name, Dutch, just obscure) can still be locked in on purpose — and the other player guesses it,
+with the word-picker able to watch the guesses land in real time. The paw button switches to solo
+mode against **Archie**, who's already picked a word for you to crack — no setup needed. Solo
+sessions **auto-save**.
+
 ###  Lucky Number
 
 Pick **1–100** or **1–1000** with the two buttons up top (switching modes starts a fresh grid).
@@ -140,10 +152,10 @@ one and the pack celebrates. Your rules and crossed-off numbers **auto-save**.
 Hand-written HTML, CSS and vanilla JavaScript — no frameworks, no build step, no npm
 dependencies at runtime. [`index.html`](index.html) is the home screen / game picker;
 [`tidier.html`](tidier.html), [`sudoku.html`](sudoku.html), [`wordle.html`](wordle.html),
-[`salad.html`](salad.html), [`cipherduel.html`](cipherduel.html),
-[`luckynumber.html`](luckynumber.html) and [`codevault.html`](codevault.html) are the seven
-games, each its own page. [`shared.css`](shared.css) and [`shared.js`](shared.js) hold the common
-look, sounds, sparkles and the husky pack so every page shares them instead of repeating the code.
+[`salad.html`](salad.html), [`cipherduel.html`](cipherduel.html), [`luckynumber.html`](luckynumber.html),
+[`codevault.html`](codevault.html) and [`hangman.html`](hangman.html) are the eight games, each its
+own page. [`shared.css`](shared.css) and [`shared.js`](shared.js) hold the common look, sounds,
+sparkles and the husky pack so every page shares them instead of repeating the code.
 
 -  **All the art is code.** Every frame, pencil, mug, biscuit, spoon and husky is an
   inline **SVG drawn by JavaScript functions** — shapes, gradients and paths, zero image
@@ -158,12 +170,12 @@ look, sounds, sparkles and the husky pack so every page shares them instead of r
   if there's no internet to check it).
 -  **Progress is saved with `localStorage`:** which Tidier levels are finished, Sudoku's
   current puzzle/entries/difficulty, Cipher Duel's solo-vs-Ice state, Code Vault's solo-vs-Chip
-  state, and Lucky
-  Number's range/rules/crossed-off numbers — all survive closing the app. Online rooms in Cipher
-  Duel and Code Vault are session-only and don't persist.
--  **Online duels run on [Supabase Realtime](https://supabase.com/realtime):** Cipher Duel and
-  Code Vault use it purely as a live relay (Broadcast + Presence channels, no database) — secrets
-  never leave the device that owns them, only guesses and verdicts get sent over the wire.
+  state, Hangman's solo-vs-Archie state, and Lucky Number's range/rules/crossed-off numbers — all
+  survive closing the app. Online rooms in Cipher Duel, Code Vault and Hangman are session-only
+  and don't persist.
+-  **Online duels run on [Supabase Realtime](https://supabase.com/realtime):** Cipher Duel, Code
+  Vault and Hangman use it purely as a live relay (Broadcast + Presence channels, no database) —
+  secrets never leave the device that owns them, only guesses and verdicts get sent over the wire.
 -  **The desktop app is [Electron](https://www.electronjs.org/):** [`main.js`](main.js)
   opens a window and loads the game room into it. [`electron-builder`](https://www.electron.build/)
   packs it into a single portable exe. (See [`ELECTRON.md`](ELECTRON.md) for a crash course.)
