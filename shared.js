@@ -91,6 +91,15 @@ function showBanner(text, ms = 1800){
   if(ms) setTimeout(() => b.classList.remove('show'), ms);
 }
 
+/* ---------- GoatCounter analytics (no cookies) ---------- */
+(function(){
+  const s = document.createElement('script');
+  s.async = true;
+  s.src = 'https://gc.zgo.at/count.js';
+  s.dataset.goatcounter = 'https://xayan.goatcounter.com/count';
+  document.head.appendChild(s);
+})();
+
 /* ---------- the huskies ---------- */
 const heartPath = (cx, cy, s, fill) =>
   `<path d="M ${cx} ${cy+0.35*s} C ${cx-0.55*s} ${cy-0.02*s} ${cx-0.32*s} ${cy-0.45*s} ${cx} ${cy-0.16*s}
