@@ -82,7 +82,6 @@
 <button class="roundBtn right" id="botBtn" title="play online instead">🐾</button>
 <h1 class="bigtitle" style="font-size:34px;">Hangman</h1>
 <div class="sub tiny" id="subtext" style="max-width:min(94vw,480px);"></div>
-
 <div id="app"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -105,6 +104,53 @@ const ARCHIE_WORDS = [
 ];
 function randomArchieWord(){ return ARCHIE_WORDS[Math.floor(Math.random() * ARCHIE_WORDS.length)]; }
 
+/* themes: the player types anything, or leaves it empty and the pack surprises them.
+   Themed words come from the free Datamuse API (no key needed); offline or on any
+   hiccup we quietly fall back to Archie's own word list above. */
+const PACK_THEMES = ['cowboy','camping','winter','puppy','baking','ocean','forest','space','music','garden'];
+let botTheme = null;        // the seed word sent to the API (null = Archie's own list)
+let botThemeLabel = null;   // what we show the player ("camping (picked by the pack)" etc.)
+let pickingTheme = false;   // true while the theme screen is showing (fresh solo start, or after "change theme")
+
+async function randomThemeWord(seed){
+  try{
+    const res = await fetch(`https://api.datamuse.com/words?ml=${encodeURIComponent(seed)}&max=250`);
+    if(!res.ok) throw 0;
+    const list = (await res.json())
+      .map(w => w.word)
+      .filter(w => /^[a-z]{5,12}$/.test(w));   // single real words, 5-12 letters
+    if(list.length < 5) throw 0;
+    return list[Math.floor(Math.random() * list.length)];
+  }catch(e){
+    botThemeLabel = null;   // theme didn't work out — make that visible
+    botTheme = null;
+    return randomArchieWord();
+  }
+}
+
+/* apply what's typed in the theme box: empty = the pack picks one at random.
+   Either way the theme screen closes — changing it later goes through "change theme". */
+async function applyTheme(raw){
+  const typed = (raw || '').trim().toLowerCase();
+  if(typed){
+    botTheme = typed;
+    botThemeLabel = typed;
+  } else {
+    botTheme = PACK_THEMES[Math.floor(Math.random() * PACK_THEMES.length)];
+    botThemeLabel = `${botTheme} (picked by the pack)`;
+  }
+  pickingTheme = false;
+  await newBotWord();
+}
+
+/* skip themes entirely — Archie's own word list */
+async function chooseNoTheme(){
+  botTheme = null;
+  botThemeLabel = null;
+  pickingTheme = false;
+  await newBotWord();
+}
+
 function maskedWord(word, results){ return [...word].map(ch => results[ch] === 'hit' ? ch : null); }
 function isSolved(word, results){ return [...new Set(word)].every(ch => results[ch] === 'hit'); }
 
@@ -121,15 +167,15 @@ async function isRealWord(word){
   }
 }
 
-let vsBot = null;                              // null until the player picks solo vs online
+let vsBot = null;                 // null until the player picks solo vs online
 let botWord = randomArchieWord();
-let wordInput = '';                            // chooser's draft word (online only)
+let wordInput = '';               // chooser's draft word (online only)
 let checkingWord = false;
-let wordCheckResult = null;                    // null | 'unverified'
-let secretWord = '';                            // chooser's locked word (online, chooser role only)
+let wordCheckResult = null;       // null | 'unverified'
+let secretWord = '';              // chooser's locked word (online, chooser role only)
 let mySecretLocked = false;
-let guesserMasked = [];                         // online guesser's view of the word-so-far: (letter|null)[]
-let letterResults = {};                         // letter -> 'hit' | 'miss'
+let guesserMasked = [];           // online guesser's view of the word-so-far: (letter|null)[]
+let letterResults = {};           // letter -> 'hit' | 'miss'
 let wrongCount = 0;
 let solved = false;
 let wonAnnounced = false, lostAnnounced = false;
@@ -144,15 +190,15 @@ let room = {
   code: '', status: 'idle', channel: null, myId: (crypto.randomUUID ? crypto.randomUUID() : uid('player')),
   opponentPresent: false, opponentId: null, opponentLocked: false,
   myRoleChoice: null, opponentRoleChoice: null,   // null | 'chooser' | 'guesser'
-  amChooser: null,                 // null until both roles are chosen and disagree | true | false
+  amChooser: null,   // null until both roles are chosen and disagree | true | false
   iWon: false, theyWon: false, revealedWord: null,
 };
 
 /* ---------------- persistence (bot-mode sessions only — online rooms are ephemeral) ---------------- */
 function saveState(){
-  if(vsBot === null) return;                     // no mode picked yet — don't clobber a prior save
+  if(vsBot === null) return;   // no mode picked yet — don't clobber a prior save
   try{
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ vsBot, botWord, letterResults, wrongCount, solved }));
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ vsBot, botWord, letterResults, wrongCount, solved, botTheme, botThemeLabel }));
   }catch(e){}
 }
 function loadSaved(){
@@ -224,14 +270,18 @@ function pressLetter(letter){
   }
   render();
 }
-function newBotWord(){
-  botWord = randomArchieWord();
+async function newBotWord(){
+  botWord = botTheme ? await randomThemeWord(botTheme) : randomArchieWord();
   resetRound();
   render();
 }
 function chooseMode(bot){
   vsBot = bot;
-  if(bot) botWord = randomArchieWord();
+  if(bot){
+    botWord = randomArchieWord();
+    botTheme = null; botThemeLabel = null;
+    pickingTheme = true;          // fresh solo start → theme screen first
+  }
   resetRound();
   render();
 }
@@ -242,12 +292,15 @@ function toggleVsBot(){
     leaveRoom(false);
     vsBot = true;
     botWord = randomArchieWord();
+    botTheme = null; botThemeLabel = null;
+    pickingTheme = true;          // arriving in solo → theme screen first
   }
   resetRound();
   render();
 }
 
 /* ---------------- online room ---------------- */
+
 /* either player can start a fresh round without leaving — resets both sides
    and keeps the same chooser/guesser roles (no need to re-decide them) */
 function requestRestart(){
@@ -260,6 +313,7 @@ function handleIncomingRestart(){
   updatePresence();
   render();
 }
+
 /* either player can flip roles for the next round — both clients flip their
    OWN current role independently (on click, and on receiving the broadcast),
    so the two sides swap in lockstep instead of racing to the same role */
@@ -275,6 +329,7 @@ function handleIncomingSwap(){
   updatePresence();
   render();
 }
+
 function updatePresence(){
   if(!vsBot && room.channel && room.status === 'connected'){
     room.channel.track({ locked: mySecretLocked, role: room.myRoleChoice });
@@ -286,6 +341,7 @@ function chooseRole(role){
   updatePresence();
   render();
 }
+
 function connectRoom(code){
   if(!code) return;
   if(room.channel) leaveRoom(false);
@@ -299,7 +355,6 @@ function connectRoom(code){
   const channel = getSupabase().channel(`hangman:${code}`, {
     config: { broadcast: { self:false }, presence: { key: room.myId } }
   });
-
   channel
     .on('broadcast', { event:'guess' }, ({ payload }) => handleIncomingGuess(payload))
     .on('broadcast', { event:'result' }, ({ payload }) => handleIncomingResult(payload))
@@ -326,7 +381,6 @@ function connectRoom(code){
         render();
       }
     });
-
   room.channel = channel;
 }
 function leaveRoom(rerender = true){
@@ -337,6 +391,7 @@ function leaveRoom(rerender = true){
   resetRound();
   if(rerender) render();
 }
+
 /* chooser side: score the incoming letter against MY word, broadcast the full state back */
 function handleIncomingGuess({ letter }){
   if(!secretWord || letterResults[letter]) return;
@@ -351,10 +406,11 @@ function handleIncomingGuess({ letter }){
   };
   if(lostNow) payload.revealedWord = secretWord;
   room.channel?.send({ type:'broadcast', event:'result', payload });
-  if(solvedNow) room.theyWon = true;             // opponent (guesser) cracked MY word
-  if(lostNow) room.iWon = true;                   // my word survived
+  if(solvedNow) room.theyWon = true;   // opponent (guesser) cracked MY word
+  if(lostNow) room.iWon = true;        // my word survived
   render();
 }
+
 /* guesser side: the authoritative state after my (or the initial post-lock) guess */
 function handleIncomingResult({ maskedWord: mw, letterResults: lr, wrongCount: wc, solved: isSolvedNow, revealedWord }){
   guesserMasked = mw || [];
@@ -386,34 +442,28 @@ function cowboySVG(wrong){
     <line x1="30" y1="15" x2="95" y2="15" stroke="#a9805a" stroke-width="7" stroke-linecap="round"/>
     <line x1="30" y1="36" x2="52" y2="15" stroke="#a9805a" stroke-width="5" stroke-linecap="round"/>
     <line x1="95" y1="15" x2="95" y2="${s(2) ? 33 : 50}" stroke="#8a7256" stroke-width="2.5"/>
-
     ${s(2) ? `
       <circle cx="95" cy="46" r="13" fill="#f0c9a0" stroke="#5c4a3d" stroke-width="1.5"/>
       <circle cx="90" cy="46" r="1.6" fill="#5c4a3d"/><circle cx="100" cy="46" r="1.6" fill="#5c4a3d"/>
       <path d="M89 52 Q95 56 101 52" stroke="#5c4a3d" stroke-width="1.5" fill="none" stroke-linecap="round"/>
     ` : ''}
-
     ${s(1) ? `
       <ellipse cx="95" cy="${s(2) ? 35 : 40}" rx="20" ry="5" fill="#a9714a" stroke="#5c4a3d" stroke-width="1.5"/>
       <path d="M84 ${s(2) ? 33 : 38} Q95 ${s(2) ? 13 : 18} 106 ${s(2) ? 33 : 38} Z" fill="#c48b5e" stroke="#5c4a3d" stroke-width="1.5"/>
     ` : ''}
-
     ${s(3) ? `
       <path d="M87 58 L103 58 L95 66 Z" fill="#e8a9b0" stroke="#5c4a3d" stroke-width="1.2"/>
       <rect x="80" y="59" width="30" height="34" rx="8" fill="#cbb3e0" stroke="#5c4a3d" stroke-width="1.5"/>
       <path d="M95 59 L95 93" stroke="#5c4a3d" stroke-width="1.2"/>
     ` : ''}
-
     ${s(4) ? `
       <line x1="80" y1="66" x2="62" y2="82" stroke="#f0c9a0" stroke-width="6" stroke-linecap="round"/>
       <line x1="110" y1="66" x2="128" y2="82" stroke="#f0c9a0" stroke-width="6" stroke-linecap="round"/>
     ` : ''}
-
     ${s(5) ? `
       <line x1="88" y1="93" x2="80" y2="128" stroke="#7d92b8" stroke-width="7" stroke-linecap="round"/>
       <line x1="102" y1="93" x2="110" y2="128" stroke="#7d92b8" stroke-width="7" stroke-linecap="round"/>
     ` : ''}
-
     ${s(6) ? `
       <path d="M72 128 L80 128 L84 138 L68 138 Z" fill="#8a5a3a" stroke="#5c4a3d" stroke-width="1.3"/>
       <path d="M110 128 L118 128 L122 138 L106 138 Z" fill="#8a5a3a" stroke="#5c4a3d" stroke-width="1.3"/>
@@ -469,7 +519,7 @@ function render(){
           <button class="btn small" id="joinRoomBtn">join room</button>
         </div>
         <p class="hintText">agree on any word with your partner, then both type it here and tap join —
-          once you're both in, each of you picks whether you're the word-chooser or the guesser.</p>
+        once you're both in, each of you picks whether you're the word-chooser or the guesser.</p>
       </div>
     `;
     const chooseSoloBtn = document.getElementById('chooseSoloBtn');
@@ -484,23 +534,36 @@ function render(){
   }
 
   subtext.innerHTML = vsBot
-    ? `Archie picked a secret word — guess the letters before the cowboy's fully strung up (${MAX_WRONG} wrong guesses).`
+    ? (pickingTheme
+        ? `First pick a theme — Archie will choose his secret words from it.`
+        : `Archie picked a secret word — guess the letters before the cowboy's fully strung up (${MAX_WRONG} wrong guesses).`)
     : (room.status === 'connected' && room.amChooser !== null)
-    ? (room.amChooser
-        ? `You're the <b>word-chooser</b> — pick a word (${MIN_WORD_LEN}+ letters), then wait for your partner to guess it.`
-        : `You're the <b>guesser</b> — crack your partner's word before the cowboy's fully strung up.`)
-    : `Play a live round with someone on another device: one of you picks a secret word, the other guesses it letter
-       by letter. Agree on a room code, both join, then each pick whether you're the word-chooser or the guesser.`;
+      ? (room.amChooser
+          ? `You're the <b>word-chooser</b> — pick a word (${MIN_WORD_LEN}+ letters), then wait for your partner to guess it.`
+          : `You're the <b>guesser</b> — crack your partner's word before the cowboy's fully strung up.`)
+      : `Play a live round with someone on another device: one of you picks a secret word, the other guesses it letter
+         by letter. Agree on a room code, both join, then each pick whether you're the word-chooser or the guesser.`;
 
   const showWordInput = !vsBot && room.status === 'connected' && room.amChooser === true && !mySecretLocked;
-  const showBoard = vsBot || (!vsBot && room.status === 'connected' && room.amChooser !== null);
+  const showBoard = (vsBot && !pickingTheme) || (!vsBot && room.status === 'connected' && room.amChooser !== null);
   const wrongLeft = MAX_WRONG - wrongCount;
   const rolesConflict = !!(room.opponentPresent && room.myRoleChoice && room.opponentRoleChoice && room.myRoleChoice === room.opponentRoleChoice);
   const showRolePicker = !vsBot && room.status === 'connected' && room.opponentPresent && room.amChooser === null;
 
   app.innerHTML = `
     <div class="panel">
-      ${vsBot ? `
+      ${vsBot ? (pickingTheme ? `
+        <div class="panelLabel">Pick a theme</div>
+        <div class="ruleRow">
+          <input type="text" id="themeInput" class="ruleInput" placeholder="type a theme, or leave empty" style="text-transform:none;">
+          <button class="btn small" id="themeBtn">go</button>
+        </div>
+        <div class="btnRow" style="margin-top:8px;">
+          <button class="btn small ghost" id="noThemeBtn">no theme — Archie's own mix</button>
+        </div>
+        <p class="hintText">type anything (space, pirates, baking…) and Archie picks a word from that theme.
+        Leave it empty and tap go — then the pack picks a theme for you.</p>
+      ` : `
         <div class="panelLabel">Guess Archie's word</div>
         <div class="botBlock">
           <div class="botStatus">
@@ -510,7 +573,11 @@ function render(){
           </div>
           <button class="btn small ghost" id="newBotBtn">🔀 new word</button>
         </div>
-      ` : room.status === 'connected' ? `
+        <p class="hintText">
+          ${botThemeLabel ? `theme: <b>${botThemeLabel}</b>` : `no theme — Archie's own mix`}
+          — <button id="changeThemeBtn" style="background:none;border:none;text-decoration:underline;color:var(--ink-soft);cursor:pointer;font-family:inherit;font-size:11.5px;padding:0;">change theme</button>
+        </p>
+      `) : room.status === 'connected' ? `
         <div class="panelLabel">Play online</div>
         <div class="botBlock">
           <div class="botStatus">
@@ -520,14 +587,14 @@ function render(){
               : room.amChooser === null ? (room.myRoleChoice ? 'waiting for your partner to choose a role…' : 'choose your role below')
               : room.amChooser
                 ? (!mySecretLocked ? 'pick a word below, then lock it in'
-                   : room.theyWon ? 'your partner guessed it! 🤠'
-                   : room.iWon ? 'your word survived! 🛡️'
-                   : 'your partner is guessing…')
+                  : room.theyWon ? 'your partner guessed it! 🤠'
+                  : room.iWon ? 'your word survived! 🛡️'
+                  : 'your partner is guessing…')
                 : (!room.opponentLocked ? "waiting for your partner to choose their word…"
-                   : room.iWon ? 'you got it! ♥'
-                   : room.theyWon ? "out of guesses — word revealed below 👀"
-                   : awaitingGuessResult ? 'checking that letter…'
-                   : `${wrongLeft} wrong guess${wrongLeft === 1 ? '' : 'es'} left`)}
+                  : room.iWon ? 'you got it! ♥'
+                  : room.theyWon ? "out of guesses — word revealed below 👀"
+                  : awaitingGuessResult ? 'checking that letter…'
+                  : `${wrongLeft} wrong guess${wrongLeft === 1 ? '' : 'es'} left`)}
           </div>
           ${(room.iWon || room.theyWon) ? `
             <button class="btn small" id="restartBtn">🔄 play again</button>
@@ -551,7 +618,7 @@ function render(){
           </button>
         </div>
         <p class="hintText">agree on any word with your partner, then both type it here and tap join —
-          once you're both in, each of you picks whether you're the word-chooser or the guesser.</p>
+        once you're both in, each of you picks whether you're the word-chooser or the guesser.</p>
       `}
     </div>
 
@@ -566,7 +633,7 @@ function render(){
         </div>
         ${wordCheckResult === 'unverified' ? `
           <p class="hintText">couldn't verify "${wordInput}" as a real English word — could be a name, a Dutch word, or
-            just obscure to the dictionary. <button class="clearLink" id="lockAnywayBtn" style="background:none;border:none;text-decoration:underline;color:var(--ink-soft);cursor:pointer;font-family:inherit;font-size:11.5px;padding:0;">lock it in anyway</button></p>
+          just obscure to the dictionary. <button class="clearLink" id="lockAnywayBtn" style="background:none;border:none;text-decoration:underline;color:var(--ink-soft);cursor:pointer;font-family:inherit;font-size:11.5px;padding:0;">lock it in anyway</button></p>
         ` : `<p class="hintText">letters only, ${MIN_WORD_LEN}+ of them. We'll check it's a real word before locking in.</p>`}
       </div>
     ` : ''}
@@ -594,9 +661,19 @@ function wireInputs(){
   if(checkLockBtn) checkLockBtn.onclick = checkAndLock;
   const lockAnywayBtn = document.getElementById('lockAnywayBtn');
   if(lockAnywayBtn) lockAnywayBtn.onclick = lockAnyway;
-
   const newBotBtn = document.getElementById('newBotBtn');
   if(newBotBtn) newBotBtn.onclick = newBotWord;
+
+  const themeBtn = document.getElementById('themeBtn');
+  const themeInput = document.getElementById('themeInput');
+  if(themeBtn && themeInput){
+    themeBtn.onclick = () => applyTheme(themeInput.value);
+    themeInput.onkeydown = e => { if(e.key === 'Enter'){ e.stopPropagation(); applyTheme(themeInput.value); } };
+  }
+  const noThemeBtn = document.getElementById('noThemeBtn');
+  if(noThemeBtn) noThemeBtn.onclick = chooseNoTheme;
+  const changeThemeBtn = document.getElementById('changeThemeBtn');
+  if(changeThemeBtn) changeThemeBtn.onclick = () => { pickingTheme = true; render(); };
 
   if(!vsBot){
     if(room.status === 'connected'){
@@ -625,8 +702,10 @@ function wireInputs(){
   });
 }
 
-/* real keyboard works too, while a guess is actually possible */
+/* real keyboard works too, while a guess is actually possible —
+   but typing inside any text box (theme, room code, secret word) never counts as a guess */
 addEventListener('keydown', e => {
+  if(e.target && e.target.tagName === 'INPUT') return;
   if(/^[a-zA-Z]$/.test(e.key)) pressLetter(e.key);
 });
 
@@ -669,6 +748,8 @@ if(saved && saved.vsBot && typeof saved.botWord === 'string' && saved.botWord.le
   letterResults = saved.letterResults || {};
   wrongCount = saved.wrongCount || 0;
   solved = !!saved.solved;
+  botTheme = saved.botTheme || null;
+  botThemeLabel = saved.botThemeLabel || null;
   wonAnnounced = solved;
   lostAnnounced = !solved && wrongCount >= MAX_WRONG;
 }
