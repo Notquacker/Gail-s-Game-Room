@@ -2,7 +2,7 @@
 
 # Gail's Game Room ♥
 
-*Eight cozy games made with love for **Gail**, starring our three babies —
+*Nine cozy games made with love for **Gail**, starring our three babies —
 **Archie**, **Ice** & **Chip** the huskies.*
 
 | Game | What it is |
@@ -15,6 +15,7 @@
 |  **Lucky Number** | type logic rules (`even`, `>40`, `cijfersom<=7`, `tussen20-30`, `dubbelecijfers`, …) to narrow a grid of numbers down to one — play 1–100 or 1–1000 |
 |  **Code Vault** | classic Mastermind: crack a hidden 4-peg code (each color used at most once) in 10 tries using black/white peg feedback — solo against **Chip**, or online where one partner locks the code and the other cracks it |
 |  **Hangman** | guess the word one letter at a time before a cowboy gets fully strung up — a Wordle-style keyboard tracks every letter you've tried. Solo against **Archie**, or online where one partner picks a real word (checked live against a dictionary) and the other guesses it |
+|  **Bathtub Battle** | Battleship in a bathtub: hide your toy fleet — a Big Boat, a Tugboat and two Duckies — on an 8×8 tub, then take turns firing shots to sink the other fleet first. Solo against **the whole pack**, or live online against a partner |
 
 Open the game, land on a **home screen**, pick a game from the **game room** menu, and every
 game shares the same pastel look, pause menu, and husky supervision from the corner.
@@ -133,6 +134,18 @@ with the word-picker able to watch the guesses land in real time. The paw button
 mode against **Archie**, who's already picked a word for you to crack — no setup needed. Solo
 sessions **auto-save**.
 
+###  Bathtub Battle
+
+Battleship, but the sea is a bathtub and the fleet is bath toys: a **Big Boat** (4 squares), a
+**Tugboat** (3) and two **Duckies** (2 each). First **drag** your boats from the dock into your
+8×8 tub — **tap a placed boat to rotate it** (or tap an empty square to drop the next docked boat
+there). Once both fleets are set, take turns tapping squares in the other tub: splash = miss,
+boom = hit, and a fully-hit boat is sunk — the fleet strip under the tub crosses off what's gone.
+Sink all four toys before your fleet goes under. Online it works like the other duels: share a
+room code and play live against a partner on any device. The paw button switches to solo mode
+against **the whole pack**, who hide a fleet of their own and shoot back. Solo sessions
+**auto-save**.
+
 ###  Lucky Number
 
 Pick **1–100** or **1–1000** with the two buttons up top (switching modes starts a fresh grid).
@@ -153,8 +166,8 @@ Hand-written HTML, CSS and vanilla JavaScript — no frameworks, no build step, 
 dependencies at runtime. [`index.html`](index.html) is the home screen / game picker;
 [`tidier.html`](tidier.html), [`sudoku.html`](sudoku.html), [`wordle.html`](wordle.html),
 [`salad.html`](salad.html), [`cipherduel.html`](cipherduel.html), [`luckynumber.html`](luckynumber.html),
-[`codevault.html`](codevault.html) and [`hangman.html`](hangman.html) are the eight games, each its
-own page. [`shared.css`](shared.css) and [`shared.js`](shared.js) hold the common look, sounds,
+[`codevault.html`](codevault.html), [`hangman.html`](hangman.html) and [`bathtub.html`](bathtub.html)
+are the nine games, each its own page. [`shared.css`](shared.css) and [`shared.js`](shared.js) hold the common look, sounds,
 sparkles and the husky pack so every page shares them instead of repeating the code.
 
 -  **All the art is code.** Every frame, pencil, mug, biscuit, spoon and husky is an
@@ -170,12 +183,13 @@ sparkles and the husky pack so every page shares them instead of repeating the c
   if there's no internet to check it).
 -  **Progress is saved with `localStorage`:** which Tidier levels are finished, Sudoku's
   current puzzle/entries/difficulty, Cipher Duel's solo-vs-Ice state, Code Vault's solo-vs-Chip
-  state, Hangman's solo-vs-Archie state, and Lucky Number's range/rules/crossed-off numbers — all
-  survive closing the app. Online rooms in Cipher Duel, Code Vault and Hangman are session-only
-  and don't persist.
+  state, Hangman's solo-vs-Archie state, Bathtub Battle's solo-vs-the-pack state, and Lucky
+  Number's range/rules/crossed-off numbers — all survive closing the app. Online rooms in Cipher
+  Duel, Code Vault, Hangman and Bathtub Battle are session-only and don't persist.
 -  **Online duels run on [Supabase Realtime](https://supabase.com/realtime):** Cipher Duel, Code
-  Vault and Hangman use it purely as a live relay (Broadcast + Presence channels, no database) —
-  secrets never leave the device that owns them, only guesses and verdicts get sent over the wire.
+  Vault, Hangman and Bathtub Battle use it purely as a live relay (Broadcast + Presence channels,
+  no database) — secrets and fleets never leave the device that owns them, only guesses, shots
+  and verdicts get sent over the wire.
 -  **The desktop app is [Electron](https://www.electronjs.org/):** [`main.js`](main.js)
   opens a window and loads the game room into it. [`electron-builder`](https://www.electron.build/)
   packs it into a single portable exe. (See [`ELECTRON.md`](ELECTRON.md) for a crash course.)

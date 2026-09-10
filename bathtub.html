@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Bathtub Battle ♥ Gail's Game Room</title>
+<link rel="icon" type="image/png" href="build/icon.png">
+<meta name="theme-color" content="#f7f0e2">
+<link rel="stylesheet" href="shared.css">
+<style>
+  body{ position:relative; display:flex; flex-direction:column; align-items:center; gap:10px; padding:56px 10px 150px; }
+  #app{ width:min(94vw, 480px); display:flex; flex-direction:column; gap:12px; }
+  .playArea{ display:flex; flex-direction:column; gap:12px; }
+
+  /* two boards + panels can grow taller than the viewport, so the pack must
+     scroll with the page (same fix as codevault.html / luckynumber.html) */
+  #pack{ position:absolute; }
+
+  /* desktop: the two tubs side by side instead of stacked */
+  @media (min-width:820px){
+    #app{ width:min(90vw, 860px); }
+    .playArea{ display:grid; grid-template-columns:1fr 1fr; align-items:start; gap:14px; }
+  }
+
+  .panel{
+    background:var(--card); border:3px solid var(--ink); border-radius:16px;
+    padding:14px 16px; box-shadow:3px 4px 0 rgba(92,74,61,.2);
+  }
+  .panelLabel{ font-size:14px; letter-spacing:.03em; color:var(--ink-soft); margin-bottom:8px; }
+
+  .btn.small{ font-size:15px; padding:6px 16px; }
+  .btn.ghost{ color:var(--ink-soft); background:transparent; box-shadow:none; border-style:dashed; }
+  .btnRow{ display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
+
+  .ruleRow{ display:flex; gap:8px; }
+  .ruleInput{
+    flex:1; background:#fffdf6; border:2px solid #e0d5c2; border-radius:9px;
+    color:var(--ink); padding:9px 12px; font-family:inherit; font-size:15px; outline:none;
+  }
+  .ruleInput:focus{ border-color:var(--blue); }
+  .hintText{ margin:8px 0 0; font-size:11.5px; color:var(--ink-soft); line-height:1.6; }
+
+  .botBlock{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .botStatus{ font-size:13.5px; color:var(--ink-soft); flex:1; min-width:140px; }
+
+  /* ---------- the tubs ---------- */
+  .tub{
+    display:grid; grid-template-columns:repeat(8, 1fr); gap:3px;
+    background:linear-gradient(180deg,#dcebf7,#c8ddf0); border:2.5px solid #a9c3e8;
+    border-radius:14px; padding:8px; touch-action:manipulation;
+  }
+  .cell{
+    aspect-ratio:1; border-radius:6px; border:none; padding:0; cursor:default;
+    background:rgba(255,253,246,.55); position:relative;
+    font-family:inherit; font-size:15px; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .08s;
+  }
+  .cell.aim{ cursor:pointer; }
+  .cell.aim:hover{ background:rgba(255,253,246,.9); }
+  .cell.aim:active{ transform:scale(.9); }
+  .cell.boat{ background:var(--boat, var(--green)); }
+  .cell.boat.capL{ border-top-left-radius:12px; border-bottom-left-radius:12px; }
+  .cell.boat.capR{ border-top-right-radius:12px; border-bottom-right-radius:12px; }
+  .cell.boat.capT{ border-top-left-radius:12px; border-top-right-radius:12px; }
+  .cell.boat.capB{ border-bottom-left-radius:12px; border-bottom-right-radius:12px; }
+  .cell.miss::after{
+    content:''; width:9px; height:9px; border-radius:50%;
+    border:2.5px solid rgba(92,74,61,.35);
+  }
+  .cell.hit{ background:#f3c8bc; }
+  .cell.hit::after{ content:'💥'; font-size:14px; }
+  .cell.sunk{ background:#e8a9b0; }
+  .cell.sunk::after{ content:'🦆'; font-size:14px; }
+  .cell.ghost{ outline:2.5px dashed #8fb583; outline-offset:-2.5px; background:rgba(173,202,162,.4); }
+  .cell.ghost.bad{ outline-color:#e8848f; background:rgba(232,132,143,.3); }
+  .tub.placing, .tub.placing .cell{ touch-action:none; }
+
+  /* the dock — unplaced boats waiting to be dragged in */
+  .dock{ display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; margin-top:12px; min-height:32px; }
+  .dockPiece{ display:flex; gap:3px; padding:2px; cursor:grab; touch-action:none; }
+  .dockPiece.vert{ flex-direction:column; }
+  .dockPiece:active{ cursor:grabbing; }
+  .dockSeg{ width:26px; height:26px; border-radius:6px; box-shadow:1px 2px 0 rgba(92,74,61,.18); }
+  .dragGhost{
+    position:fixed; z-index:50; pointer-events:none; display:flex; gap:3px; opacity:.85;
+    filter:drop-shadow(2px 4px 3px rgba(92,74,61,.3));
+  }
+  .dragGhost.vert{ flex-direction:column; }
+  .shake{ animation:shakeX .3s; }
+  @keyframes shakeX{ 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+
+  .fleetStrip{ display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; font-size:12.5px; color:var(--ink-soft); }
+  .fleetShip{ display:flex; align-items:center; gap:5px; }
+  .fleetShip.gone{ opacity:.4; text-decoration:line-through; }
+  .fleetDots{ display:inline-flex; gap:2px; }
+  .fleetDot{ width:9px; height:9px; border-radius:3px; }
+
+  .turnBadge{
+    display:inline-block; font-size:13px; padding:4px 12px; border-radius:999px;
+    background:linear-gradient(180deg,#fffdf6,#f8eed8); border:2px solid var(--ink); color:var(--ink);
+  }
+  .turnBadge.mine{ background:linear-gradient(180deg,#e6f3e0,#d3e8c8); }
+
+  @media (max-width:380px){ .cell.hit::after, .cell.sunk::after{ font-size:11px; } }
+</style>
+</head>
+<body>
+
+<button class="roundBtn right" id="botBtn" title="play solo vs the pack">🐾</button>
+<h1 class="bigtitle" style="font-size:34px;">Bathtub Battle</h1>
+<div class="sub tiny" id="subtext" style="max-width:min(94vw,480px);"></div>
+
+<div id="app"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+const SIZE = 8;                                     // 8×8 tub — cozier & faster than 10×10
+const CELLS = SIZE * SIZE;
+const FLEET = [                                     // specIdx, name, length, palette color
+  { specIdx:0, name:'Big Boat', len:4, color:PALETTE[4] },     // blue
+  { specIdx:1, name:'Tugboat',  len:3, color:PALETTE[3] },     // green
+  { specIdx:2, name:'Ducky',    len:2, color:PALETTE[2] },     // yellow
+  { specIdx:3, name:'Ducky',    len:2, color:PALETTE[1] },     // peach
+];
+const SAVE_KEY = 'bathtub-save';
+
+const rc = i => [Math.floor(i / SIZE), i % SIZE];
+const idx = (r, c) => r * SIZE + c;
+const inBounds = (r, c) => r >= 0 && r < SIZE && c >= 0 && c < SIZE;
+
+/* ---------- fleet helpers ----------
+   a fleet = [{ cells:[i,…], hits:[bool,…], color, name }] */
+function shipAt(fleet, i){ return fleet.find(s => s.cells.includes(i)); }
+function shipSunk(s){ return s.hits.every(Boolean); }
+function isHoriz(s){ return s.cells.length < 2 || rc(s.cells[0])[0] === rc(s.cells[1])[0]; }
+function allSunk(fleet){ return fleet.length === FLEET.length && fleet.every(shipSunk); }
+function tryPlace(fleet, spec, origin, horiz){
+  const [r, c] = rc(origin);
+  const cells = [];
+  for(let k = 0; k < spec.len; k++){
+    const rr = horiz ? r : r + k, cc = horiz ? c + k : c;
+    if(!inBounds(rr, cc)) return null;
+    const i = idx(rr, cc);
+    if(fleet.some(s => s.cells.includes(i))) return null;
+    cells.push(i);
+  }
+  return { cells, hits: Array(spec.len).fill(false), color: spec.color, name: spec.name, specIdx: spec.specIdx };
+}
+function randomFleet(){
+  for(let attempt = 0; attempt < 200; attempt++){
+    const fleet = [];
+    let ok = true;
+    for(const spec of FLEET){
+      let placed = null;
+      for(let t = 0; t < 120 && !placed; t++){
+        placed = tryPlace(fleet, spec, Math.floor(Math.random() * CELLS), Math.random() < .5);
+      }
+      if(!placed){ ok = false; break; }
+      fleet.push(placed);
+    }
+    if(ok) return fleet;
+  }
+  return [];                                        // never happens on 8×8, but be safe
+}
+/* score an incoming shot against MY fleet — returns the verdict to display/send */
+function scoreShot(fleet, i){
+  const s = shipAt(fleet, i);
+  if(!s) return { i, hit:false, sunkCells:null, over:false };
+  s.hits[s.cells.indexOf(i)] = true;
+  return { i, hit:true, sunkCells: shipSunk(s) ? [...s.cells] : null, over: allSunk(fleet) };
+}
+
+/* ---------- state ---------- */
+let vsBot = null;                                   // null until the player picks solo vs online
+let phase = 'place';                                // place | battle | over
+let myFleet = [];
+let dockHoriz = FLEET.map(() => true);              // per-boat orientation in the dock
+let packFleet = [];                                 // solo only — the pack's hidden fleet
+let myShots = Array(CELLS).fill(null);              // what I know about THEIR tub: null|'miss'|'hit'|'sunk'
+let theirShots = Array(CELLS).fill(null);           // shots that landed in MY tub
+let myTurn = true;
+let iWon = false, theyWon = false;
+let announced = false;
+let packThinking = false;
+let theirReveal = null;                             // their fleet cells, shown after the game ends
+
+/* online room — same Supabase Realtime pattern as Code Vault / Cipher Duel:
+   fleets never leave the device that owns them; only shots & verdicts are sent */
+let room = {
+  code:'', status:'idle',                           // idle | connecting | connected
+  channel:null, myId:(crypto.randomUUID ? crypto.randomUUID() : uid('player')),
+  opponentPresent:false, opponentId:null, opponentLocked:false,
+  awaitingVerdict:false,
+};
+
+/* ---------------- persistence (solo sessions only — online rooms are ephemeral) ---------------- */
+function saveState(){
+  if(vsBot !== true) return;
+  try{
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      phase, myFleet, dockHoriz, packFleet, myShots, theirShots, myTurn, iWon, theyWon
+    }));
+  }catch(e){}
+}
+function loadSaved(){
+  try{ const raw = localStorage.getItem(SAVE_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+
+/* ---------------- round reset ---------------- */
+function resetRound(){
+  phase = 'place'; myFleet = []; dockHoriz = FLEET.map(() => true);
+  myShots = Array(CELLS).fill(null); theirShots = Array(CELLS).fill(null);
+  myTurn = true; iWon = false; theyWon = false; announced = false;
+  packThinking = false; theirReveal = null; room.awaitingVerdict = false;
+  packFleet = vsBot ? randomFleet() : [];
+}
+
+/* ---------------- placement: drag & drop + tap to rotate ---------------- */
+const unplacedSpecs = () => FLEET.filter(spec => !myFleet.some(s => s.specIdx === spec.specIdx));
+
+/* tap an empty square: drop the next docked boat there (quick fallback) */
+function placeAt(i){
+  if(phase !== 'place') return;
+  const spec = unplacedSpecs()[0];
+  if(!spec) return;
+  const ship = tryPlace(myFleet, spec, i, dockHoriz[spec.specIdx]);
+  if(!ship){ thud(); return; }
+  myFleet.push(ship);
+  tone(520 + myFleet.length * 90, 0, .1, 'triangle', .08);
+  render();
+}
+/* tap a placed boat: rotate it around the tapped square, nudged back in bounds */
+function rotateShip(ship, i){
+  const others = myFleet.filter(x => x !== ship);
+  const horiz = isHoriz(ship);
+  const len = ship.cells.length;
+  const k = ship.cells.indexOf(i);
+  const [r, c] = rc(i);
+  const origin = horiz ? idx(clamp(r - k, 0, SIZE - len), c)      // → turns vertical
+                       : idx(r, clamp(c - k, 0, SIZE - len));     // → turns horizontal
+  const turned = tryPlace(others, FLEET[ship.specIdx], origin, !horiz);
+  if(!turned){                                       // blocked by another boat — wiggle & stay
+    thud();
+    ship.cells.forEach(ci => {
+      const el = app.querySelector(`[data-tub="mine"][data-i="${ci}"]`);
+      if(el){ el.classList.add('shake'); el.addEventListener('animationend', () => el.classList.remove('shake'), { once:true }); }
+    });
+    return;
+  }
+  myFleet[myFleet.indexOf(ship)] = turned;
+  tone(700, 0, .08, 'triangle', .07);
+  render();
+}
+function randomizeFleet(){ myFleet = randomFleet(); ding(); render(); }
+function clearFleet(){ myFleet = []; render(); }
+function lockFleet(){
+  if(phase !== 'place' || myFleet.length < FLEET.length) return;
+  ding();
+  if(vsBot){
+    phase = 'battle';
+    myTurn = Math.random() < .5;
+    if(!myTurn) schedulePackShot();
+  } else {
+    phase = 'battle';                               // locked; battle truly starts when both are
+    updatePresence();
+    maybeStartOnline();
+  }
+  render();
+}
+
+/* ---------------- dragging boats around ---------------- */
+let drag = null;
+function startDrag(e, spec, fromShip, grabI){
+  if(phase !== 'place' || drag) return;
+  e.preventDefault();
+  drag = {
+    spec, fromShip, grabI, srcEl: e.currentTarget,
+    horiz: fromShip ? isHoriz(fromShip) : dockHoriz[spec.specIdx],
+    grabK: fromShip ? fromShip.cells.indexOf(grabI) : 0,
+    x: e.clientX, y: e.clientY,
+    moved:false, ghost:null, over:null, valid:false, origin:null,
+  };
+  window.addEventListener('pointermove', dragMove);
+  window.addEventListener('pointerup', dragEnd);
+  window.addEventListener('pointercancel', dragEnd);
+}
+function dragMove(e){
+  if(!drag) return;
+  if(!drag.moved){
+    if(Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;   // still just a tap
+    drag.moved = true;
+    if(drag.fromShip){                               // lift the boat out of the tub…
+      myFleet = myFleet.filter(s => s !== drag.fromShip);
+      drag.fromShip.cells.forEach(ci => {            // …without re-rendering mid-drag
+        const el = app.querySelector(`[data-tub="mine"][data-i="${ci}"]`);
+        if(el){ el.className = 'cell aim'; el.style.cssText = ''; }
+      });
+    } else if(drag.srcEl){ drag.srcEl.style.opacity = .35; }
+    drag.ghost = makeGhost(drag.spec, drag.horiz);
+  }
+  const step = 29;                                   // dockSeg 26px + 3px gap
+  drag.ghost.style.left = (e.clientX - (drag.horiz ? drag.grabK * step + 13 : 13)) + 'px';
+  drag.ghost.style.top  = (e.clientY - (drag.horiz ? 13 : drag.grabK * step + 13)) + 'px';
+  previewDrop(e);
+}
+function previewDrop(e){
+  app.querySelectorAll('.cell.ghost').forEach(c => c.classList.remove('ghost', 'bad'));
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const cell = under && under.closest ? under.closest('[data-tub="mine"]') : null;
+  drag.over = cell ? +cell.dataset.i : null;
+  drag.valid = false;
+  if(drag.over === null) return;
+  const [r, c] = rc(drag.over);
+  const or = drag.horiz ? r : r - drag.grabK;        // grabbed segment stays under the finger
+  const oc = drag.horiz ? c - drag.grabK : c;
+  drag.origin = { or, oc };
+  const spots = [];
+  for(let k = 0; k < drag.spec.len; k++) spots.push([drag.horiz ? or : or + k, drag.horiz ? oc + k : oc]);
+  drag.valid = spots.every(([rr, cc]) => inBounds(rr, cc) && !myFleet.some(s => s.cells.includes(idx(rr, cc))));
+  spots.forEach(([rr, cc]) => {
+    if(!inBounds(rr, cc)) return;
+    const el = app.querySelector(`[data-tub="mine"][data-i="${idx(rr, cc)}"]`);
+    if(el){ el.classList.add('ghost'); if(!drag.valid) el.classList.add('bad'); }
+  });
+}
+function dragEnd(){
+  window.removeEventListener('pointermove', dragMove);
+  window.removeEventListener('pointerup', dragEnd);
+  window.removeEventListener('pointercancel', dragEnd);
+  const d = drag; drag = null;
+  if(!d) return;
+  if(d.ghost) d.ghost.remove();
+  if(!d.moved){                                      // it was a tap → rotate
+    if(d.fromShip) rotateShip(d.fromShip, d.grabI);
+    else { dockHoriz[d.spec.specIdx] = !dockHoriz[d.spec.specIdx]; tone(700, 0, .08, 'triangle', .06); render(); }
+    return;
+  }
+  if(d.valid){                                       // splash! — boat placed
+    myFleet.push(tryPlace(myFleet, d.spec, idx(d.origin.or, d.origin.oc), d.horiz));
+    tone(520 + myFleet.length * 90, 0, .1, 'triangle', .08);
+  } else if(d.fromShip && d.over !== null){          // bad spot inside the tub → put it back
+    myFleet.push(d.fromShip);
+    thud();
+  }                                                  // dropped outside the tub → back to the dock
+  render();
+}
+function makeGhost(spec, horiz){
+  const g = document.createElement('div');
+  g.className = 'dragGhost' + (horiz ? '' : ' vert');
+  g.innerHTML = Array.from({length: spec.len}).map(() =>
+    `<span class="dockSeg" style="background:${spec.color};"></span>`).join('');
+  document.body.appendChild(g);
+  return g;
+}
+
+/* ---------------- battle: my shots ---------------- */
+function canShoot(){
+  if(phase !== 'battle' || iWon || theyWon || !myTurn) return false;
+  if(vsBot) return !packThinking;
+  return room.status === 'connected' && room.opponentLocked && !room.awaitingVerdict;
+}
+function shoot(i){
+  if(!canShoot() || myShots[i] !== null) return;
+  if(vsBot){
+    applyVerdict(scoreShot(packFleet, i));
+    myTurn = false;
+    if(!iWon) schedulePackShot();
+  } else {
+    room.channel?.send({ type:'broadcast', event:'shot', payload:{ i } });
+    room.awaitingVerdict = true;
+  }
+  render();
+}
+/* the verdict on MY shot — from the pack (solo) or my partner (online) */
+function applyVerdict({ i, hit, sunkCells, over }){
+  myShots[i] = hit ? 'hit' : 'miss';
+  if(hit){ tone(880, 0, .1); tone(660, .06, .12); } else thud();
+  if(sunkCells){
+    sunkCells.forEach(c => myShots[c] = 'sunk');
+    fanfare();
+  }
+  if(over){ iWon = true; phase = 'over'; }
+}
+
+/* ---------------- battle: shots at MY tub ---------------- */
+function receiveShot(i){
+  const verdict = scoreShot(myFleet, i);
+  theirShots[i] = verdict.sunkCells ? 'sunk' : verdict.hit ? 'hit' : 'miss';
+  if(verdict.sunkCells) verdict.sunkCells.forEach(c => theirShots[c] = 'sunk');
+  if(verdict.over){ theyWon = true; phase = 'over'; }
+  return verdict;
+}
+
+/* ---------------- the pack's AI (solo) ----------------
+   hunt on a checkerboard until something is hit, then chase the hit —
+   preferring the line once two hits are in a row */
+function schedulePackShot(){
+  packThinking = true;
+  setTimeout(() => { packTurn(); }, 800 + Math.random() * 500);
+}
+function packTurn(){
+  packThinking = false;
+  if(phase !== 'battle'){ render(); return; }
+  const unexplored = i => theirShots[i] === null;
+  const activeHits = [];
+  myFleet.forEach(s => { if(!shipSunk(s)) s.cells.forEach((c, k) => { if(s.hits[k]) activeHits.push(c); }); });
+
+  let candidates = [];
+  if(activeHits.length >= 2){
+    const [r0, c0] = rc(activeHits[0]), [r1, c1] = rc(activeHits[1]);
+    if(r0 === r1){                                  // extend the row both ways
+      const cs = activeHits.map(h => rc(h)[1]);
+      candidates = [idx(r0, Math.min(...cs) - 1), idx(r0, Math.max(...cs) + 1)]
+        .filter(i => inBounds(...rc(i)) && rc(i)[0] === r0);
+    } else {                                        // extend the column
+      const rs = activeHits.map(h => rc(h)[0]);
+      candidates = [idx(Math.min(...rs) - 1, c0), idx(Math.max(...rs) + 1, c0)]
+        .filter(i => inBounds(...rc(i)));
+    }
+  }
+  if(!candidates.length && activeHits.length){      // neighbors of any active hit
+    activeHits.forEach(h => {
+      const [r, c] = rc(h);
+      [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].forEach(([rr,cc]) => { if(inBounds(rr,cc)) candidates.push(idx(rr,cc)); });
+    });
+  }
+  candidates = candidates.filter(unexplored);
+  if(!candidates.length){                           // checkerboard hunt (smallest boat is 2 long)
+    for(let i = 0; i < CELLS; i++){
+      const [r, c] = rc(i);
+      if((r + c) % 2 === 0 && unexplored(i)) candidates.push(i);
+    }
+    if(!candidates.length) for(let i = 0; i < CELLS; i++) if(unexplored(i)) candidates.push(i);
+  }
+  const shot = candidates[Math.floor(Math.random() * candidates.length)];
+  const verdict = receiveShot(shot);
+  if(verdict.hit) tone(300, 0, .12, 'sawtooth', .05); else tone(240, 0, .1, 'sine', .04);
+  myTurn = true;
+  render();
+}
+
+/* ---------------- mode switching ---------------- */
+function chooseMode(bot){ vsBot = bot; resetRound(); render(); }
+function toggleVsBot(){
+  if(vsBot){ vsBot = false; } else { leaveRoom(false); vsBot = true; }
+  resetRound(); render();
+}
+function newSoloGame(){ resetRound(); render(); }
+
+/* ---------------- online room ---------------- */
+function updatePresence(){
+  if(!vsBot && room.channel && room.status === 'connected'){
+    room.channel.track({ locked: phase !== 'place' });
+  }
+}
+/* deterministic coin flip both sides compute identically: hash of room code + both ids */
+function hashStr(s){ let h = 0; for(const ch of s) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; }
+function maybeStartOnline(){
+  if(vsBot || phase === 'place' || !room.opponentLocked || !room.opponentId) return;
+  if(phase === 'battle' && myShots.every(v => v === null) && theirShots.every(v => v === null)){
+    const ids = [room.myId, room.opponentId].sort();
+    const firstId = ids[hashStr(room.code + ids[0] + ids[1]) % 2];
+    myTurn = firstId === room.myId;
+  }
+}
+function requestRestart(){
+  if(vsBot || room.status !== 'connected') return;
+  room.channel?.send({ type:'broadcast', event:'restart', payload:{} });
+  handleIncomingRestart();
+}
+function handleIncomingRestart(){ resetRound(); updatePresence(); render(); }
+function connectRoom(code){
+  if(!code) return;
+  if(room.channel) leaveRoom(false);
+  room.code = code; room.status = 'connecting';
+  room.opponentPresent = false; room.opponentId = null; room.opponentLocked = false;
+  resetRound(); render();
+
+  const channel = getSupabase().channel(`bathtub:${code}`, {
+    config:{ broadcast:{ self:false }, presence:{ key: room.myId } }
+  });
+  channel
+    .on('broadcast', { event:'shot' }, ({ payload }) => {
+      const verdict = receiveShot(payload.i);
+      room.channel?.send({ type:'broadcast', event:'verdict', payload: verdict });
+      myTurn = true;
+      if(verdict.over) room.channel?.send({ type:'broadcast', event:'reveal',
+        payload:{ ships: myFleet.map(s => s.cells) } });
+      render();
+    })
+    .on('broadcast', { event:'verdict' }, ({ payload }) => {
+      room.awaitingVerdict = false;
+      applyVerdict(payload);
+      myTurn = false;
+      if(payload.over) room.channel?.send({ type:'broadcast', event:'reveal',
+        payload:{ ships: myFleet.map(s => s.cells) } });
+      render();
+    })
+    .on('broadcast', { event:'reveal' }, ({ payload }) => { theirReveal = payload.ships.flat(); render(); })
+    .on('broadcast', { event:'restart' }, () => handleIncomingRestart())
+    .on('presence', { event:'sync' }, () => {
+      const state = channel.presenceState();
+      const others = Object.keys(state).filter(k => k !== room.myId);
+      room.opponentPresent = others.length > 0;
+      room.opponentId = others[0] || null;
+      room.opponentLocked = others.some(k => state[k].some(p => p.locked));
+      maybeStartOnline();
+      render();
+    })
+    .subscribe(status => {
+      if(status === 'SUBSCRIBED'){
+        room.status = 'connected';
+        channel.track({ locked: phase !== 'place' });
+        render();
+      } else if(status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED'){
+        room.status = 'idle';
+        render();
+      }
+    });
+  room.channel = channel;
+}
+function leaveRoom(rerender = true){
+  if(room.channel){ getSupabase().removeChannel(room.channel); room.channel = null; }
+  room.status = 'idle'; room.code = '';
+  room.opponentPresent = false; room.opponentId = null; room.opponentLocked = false;
+  room.awaitingVerdict = false;
+  resetRound();
+  if(rerender) render();
+}
+
+/* ---------------- rendering ---------------- */
+const app = document.getElementById('app');
+const subtext = document.getElementById('subtext');
+const botBtn = document.getElementById('botBtn');
+
+function tubHTML(kind){                              // 'mine' | 'theirs'
+  const cells = [];
+  for(let i = 0; i < CELLS; i++){
+    let cls = 'cell', style = '', mark = theirShots[i];
+    if(kind === 'mine'){
+      const s = shipAt(myFleet, i);
+      if(s && mark !== 'sunk'){
+        cls += ' boat';
+        style = `--boat:${s.color};`;
+        const k = s.cells.indexOf(i), horiz = isHoriz(s);
+        if(k === 0) cls += horiz ? ' capL' : ' capT';
+        if(k === s.cells.length - 1) cls += horiz ? ' capR' : ' capB';
+      }
+      if(mark) cls += ' ' + mark;
+      if(phase === 'place') cls += ' aim';
+    } else {
+      mark = myShots[i];
+      if(mark) cls += ' ' + mark;
+      else if(theirReveal && theirReveal.includes(i)){ cls += ' boat'; style = '--boat:#e6dcc6;'; }
+      else if(canShoot()) cls += ' aim';
+    }
+    cells.push(`<button type="button" class="${cls}" style="${style}" data-tub="${kind}" data-i="${i}"></button>`);
+  }
+  return `<div class="tub${kind === 'mine' && phase === 'place' ? ' placing' : ''}">${cells.join('')}</div>`;
+}
+function fleetStripHTML(fleet){                      // which of MY boats are still afloat
+  return `<div class="fleetStrip">${FLEET.map((spec, k) => {
+    const ship = fleet.find(s => s.specIdx === k) || fleet[k];
+    return `<span class="fleetShip ${ship && shipSunk(ship) ? 'gone' : ''}">
+      <span class="fleetDots">${Array.from({length: spec.len}).map(() =>
+        `<span class="fleetDot" style="background:${spec.color};"></span>`).join('')}</span>${spec.name}</span>`;
+  }).join('')}</div>`;
+}
+function enemyFleetStripHTML(){                      // derived from sunk cells I can see
+  const sunkCount = myShots.filter(v => v === 'sunk').length;
+  let remaining = sunkCount;
+  return `<div class="fleetStrip">${FLEET.map(spec => {
+    const gone = remaining >= spec.len ? (remaining -= spec.len, true) : false;
+    return `<span class="fleetShip ${gone ? 'gone' : ''}">
+      <span class="fleetDots">${Array.from({length: spec.len}).map(() =>
+        `<span class="fleetDot" style="background:${spec.color};"></span>`).join('')}</span>${spec.name}</span>`;
+  }).join('')}</div>`;
+}
+
+function render(){
+  saveState();
+
+  botBtn.style.display = vsBot === null ? 'none' : '';
+  botBtn.style.background = vsBot ? 'linear-gradient(180deg,#e6f3e0,#d3e8c8)' : '';
+  botBtn.title = vsBot ? 'play online instead' : 'play solo vs the pack';
+
+  if(vsBot === null){
+    subtext.innerHTML = `Sink the toy fleet before yours goes under — solo against the whole pack, or live online.`;
+    app.innerHTML = `
+      <div class="panel">
+        <div class="panelLabel">How do you want to play?</div>
+        <button class="btn" id="chooseSoloBtn" style="width:100%;">🐾 play solo vs the pack</button>
+        <p class="hintText" style="text-align:center; margin:12px 0;">— or join a partner —</p>
+        <div class="ruleRow">
+          <input type="text" id="roomInput" class="ruleInput" placeholder="room code">
+          <button class="btn small" id="joinRoomBtn">join room</button>
+        </div>
+        <p class="hintText">agree on any word with your partner, then both type it here and tap join —
+          once you're both in, you each hide a fleet and take turns splashing shots at each other's tub.</p>
+      </div>`;
+    document.getElementById('chooseSoloBtn').onclick = () => chooseMode(true);
+    const roomInput = document.getElementById('roomInput');
+    const join = () => { const code = roomInput.value.trim(); if(code){ vsBot = false; connectRoom(code); } };
+    document.getElementById('joinRoomBtn').onclick = join;
+    roomInput.onkeydown = e => { if(e.key === 'Enter') join(); };
+    return;
+  }
+
+  const placing = phase === 'place';
+  subtext.innerHTML = placing
+    ? `Hide your toy fleet: <b>drag</b> the boats from the dock into the tub.
+       <b>Tap</b> any boat — docked or placed — to rotate it, drag a placed boat to move it,
+       or drag it out of the tub to take it back.`
+    : vsBot
+    ? `Take turns with the pack: splash a square in their tub, they splash back. 💥 is a hit, 🦆 means a boat went under. Sink all four first!`
+    : `Take turns with your partner — fleets stay secret on your own device, only splashes travel. Sink all four of their boats first!`;
+
+  const online = !vsBot;
+  const battleReady = !placing && (!online || (room.status === 'connected' && room.opponentLocked));
+
+  app.innerHTML = `
+    <div class="panel">
+      ${vsBot ? `
+        <div class="botBlock">
+          <div class="botStatus">
+            ${placing ? (myFleet.length < FLEET.length ? `${myFleet.length} of ${FLEET.length} boats in the tub` : 'fleet ready — lock it in!')
+              : iWon ? `you sank the pack's whole fleet! 🐾`
+              : theyWon ? `the pack sank your fleet — rematch? 🛁`
+              : packThinking ? `the pack is aiming… 👀`
+              : myTurn ? `your turn — splash their tub!` : `…`}
+          </div>
+          ${!placing ? `<button class="btn small ghost" id="newGameBtn">🔀 new battle</button>` : ''}
+        </div>
+      ` : room.status === 'connected' ? `
+        <div class="botBlock">
+          <div class="botStatus">
+            room <b>${room.code}</b> —
+            ${!room.opponentPresent ? 'waiting for your partner to join…'
+              : placing ? 'hide your fleet, then lock it in'
+              : !room.opponentLocked ? 'waiting for your partner to lock in their fleet…'
+              : iWon ? 'you sank their whole fleet! ♥'
+              : theyWon ? 'your fleet went under 💔 — but what a battle'
+              : room.awaitingVerdict ? 'waiting for the splash to land…'
+              : myTurn ? 'your turn — splash their tub!' : "your partner is aiming…"}
+          </div>
+          ${(iWon || theyWon) ? `<button class="btn small" id="restartBtn">🔄 play again</button>` : ''}
+          <button class="btn small ghost" id="leaveRoomBtn">leave room</button>
+        </div>
+        ${battleReady && !iWon && !theyWon ? `<div class="turnBadge ${myTurn ? 'mine' : ''}" style="margin-top:8px;">${myTurn ? '🎯 your turn' : '⏳ their turn'}</div>` : ''}
+      ` : `
+        <div class="panelLabel">Play online</div>
+        <div class="ruleRow">
+          <input type="text" id="roomInput" class="ruleInput" placeholder="room code">
+          <button class="btn small" id="joinRoomBtn" ${room.status === 'connecting' ? 'disabled' : ''}>
+            ${room.status === 'connecting' ? 'connecting…' : 'join room'}
+          </button>
+        </div>
+        <p class="hintText">agree on any word with your partner, then both type it here and tap join.</p>
+      `}
+    </div>
+
+    ${placing ? `
+      <div class="panel">
+        <div class="panelLabel">Your tub — drag your fleet in</div>
+        ${tubHTML('mine')}
+        <div class="dock">
+          ${unplacedSpecs().map(spec => `
+            <div class="dockPiece ${dockHoriz[spec.specIdx] ? '' : 'vert'}" data-spec="${spec.specIdx}"
+                 title="${spec.name} — drag into the tub, tap to rotate">
+              ${Array.from({length: spec.len}).map(() => `<span class="dockSeg" style="background:${spec.color};"></span>`).join('')}
+            </div>`).join('')}
+          ${unplacedSpecs().length ? '' : `<span class="hintText" style="margin:0;">the dock is empty — lock it in! 🔒</span>`}
+        </div>
+        <div class="btnRow" style="margin-top:12px;">
+          <button class="btn small" id="randFleetBtn">🎲 random</button>
+          <button class="btn small ghost" id="clearFleetBtn">clear</button>
+          <button class="btn small" id="lockFleetBtn" ${myFleet.length < FLEET.length ? 'disabled' : ''}>🔒 lock in</button>
+        </div>
+      </div>
+    ` : `
+      <div class="playArea">
+        <div class="panel">
+          <div class="panelLabel">${vsBot ? "The pack's tub" : "Their tub"} — tap to splash</div>
+          ${tubHTML('theirs')}
+          ${enemyFleetStripHTML()}
+        </div>
+        <div class="panel">
+          <div class="panelLabel">Your tub</div>
+          ${tubHTML('mine')}
+          ${fleetStripHTML(myFleet)}
+        </div>
+      </div>
+    `}
+  `;
+
+  /* wire inputs */
+  if(placing){
+    app.querySelectorAll('.dockPiece').forEach(el => {
+      el.onpointerdown = e => startDrag(e, FLEET[+el.dataset.spec], null, null);
+    });
+    app.querySelectorAll('[data-tub="mine"]').forEach(el => {
+      el.onpointerdown = e => {
+        const i = +el.dataset.i, s = shipAt(myFleet, i);
+        if(s) startDrag(e, FLEET[s.specIdx], s, i);
+      };
+      el.onclick = () => { const i = +el.dataset.i; if(!shipAt(myFleet, i)) placeAt(i); };
+    });
+  }
+  app.querySelectorAll('[data-tub="theirs"]').forEach(el => { el.onclick = () => shoot(+el.dataset.i); });
+  const randFleetBtn = document.getElementById('randFleetBtn');
+  if(randFleetBtn) randFleetBtn.onclick = randomizeFleet;
+  const clearFleetBtn = document.getElementById('clearFleetBtn');
+  if(clearFleetBtn) clearFleetBtn.onclick = clearFleet;
+  const lockFleetBtn = document.getElementById('lockFleetBtn');
+  if(lockFleetBtn) lockFleetBtn.onclick = lockFleet;
+  const newGameBtn = document.getElementById('newGameBtn');
+  if(newGameBtn) newGameBtn.onclick = newSoloGame;
+  if(!vsBot){
+    const leaveBtn = document.getElementById('leaveRoomBtn');
+    if(leaveBtn) leaveBtn.onclick = () => leaveRoom();
+    const restartBtn = document.getElementById('restartBtn');
+    if(restartBtn) restartBtn.onclick = requestRestart;
+    const roomInput = document.getElementById('roomInput');
+    if(roomInput){
+      const join = () => { const code = roomInput.value.trim(); if(code) connectRoom(code); };
+      document.getElementById('joinRoomBtn').onclick = join;
+      roomInput.onkeydown = e => { if(e.key === 'Enter') join(); };
+    }
+  }
+
+  celebrateIfNeeded();
+}
+
+function celebrateIfNeeded(){
+  if(announced || (!iWon && !theyWon)) return;
+  announced = true;
+  if(iWon){
+    fanfare(); awoo();
+    const tub = app.querySelector('.tub'); if(tub) sparkEl(tub, 22);
+    showBanner(vsBot ? "you sank the pack's fleet! ♥" : 'fleet sunk — you win! ♥', 2600);
+  } else {
+    thud(); awoo();
+    showBanner(vsBot ? 'the pack wins this bath 🐾' : 'your fleet went under 💔', 2200);
+  }
+}
+
+/* ---------------- boot ---------------- */
+botBtn.onclick = toggleVsBot;
+buildPack();
+setupPause(() => { if(vsBot === null) return; vsBot ? newSoloGame() : leaveRoom(); });
+
+const saved = loadSaved();
+if(saved && Array.isArray(saved.myFleet) && Array.isArray(saved.myShots) && saved.myShots.length === CELLS){
+  vsBot = true;
+  phase = saved.phase || 'place';
+  myFleet = saved.myFleet;
+  dockHoriz = Array.isArray(saved.dockHoriz) && saved.dockHoriz.length === FLEET.length ? saved.dockHoriz : FLEET.map(() => true);
+  /* older saves don't know which boat is which — backfill specIdx by size */
+  const used = new Set(myFleet.filter(s => s.specIdx != null).map(s => s.specIdx));
+  [...myFleet].sort((a, b) => b.cells.length - a.cells.length).forEach(s => {
+    if(s.specIdx != null) return;
+    const spec = FLEET.find(sp => sp.len === s.cells.length && !used.has(sp.specIdx));
+    if(spec){ s.specIdx = spec.specIdx; used.add(spec.specIdx); }
+  });
+  packFleet = Array.isArray(saved.packFleet) && saved.packFleet.length ? saved.packFleet : randomFleet();
+  myShots = saved.myShots; theirShots = saved.theirShots;
+  myTurn = saved.myTurn !== false;
+  iWon = !!saved.iWon; theyWon = !!saved.theyWon;
+  announced = iWon || theyWon;
+  if(phase === 'battle' && !myTurn && !iWon && !theyWon) schedulePackShot();
+}
+render();
+</script>
+</body>
+</html>

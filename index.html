@@ -13,7 +13,7 @@
   /* only what is unique to THIS page lives here */
   body{ position:relative; min-height:100vh; }
   #room{ min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:20px 20px 150px; text-align:center; }
-  /* the 7-game picker grid can run taller than one screen on mobile — let the page
+  /* the 9-game picker grid can run taller than one screen on mobile — let the page
      scroll instead of clipping it (see luckynumber.html for the same #pack fix) */
   #pack{ position:absolute; }
   .cards{
@@ -130,6 +130,20 @@ const icoHangman = `
     <line x1="42" y1="40" x2="51" y2="46" stroke="#7d92b8" stroke-width="3.5" stroke-linecap="round"/>
   </svg>`;
 
+const icoBathtub = `
+  <svg width="72" height="64" viewBox="0 0 72 64">
+    <path d="M6 30 H66 V40 Q66 54 50 54 H22 Q6 54 6 40 Z" fill="#fffdf6" stroke="rgba(92,74,61,.35)" stroke-width="2"/>
+    <rect x="4" y="27" width="64" height="7" rx="3.5" fill="#a9c3e8"/>
+    <path d="M14 27 Q14 10 24 10 Q30 10 30 16" stroke="#a08c7a" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    <ellipse cx="44" cy="24" rx="8" ry="6.5" fill="#ecd28a" stroke="rgba(92,74,61,.35)" stroke-width="1.5"/>
+    <circle cx="51" cy="19" r="4.5" fill="#ecd28a" stroke="rgba(92,74,61,.35)" stroke-width="1.5"/>
+    <polygon points="55.5,18 60,19.5 55.5,21" fill="#f0c4a0"/>
+    <circle cx="52.5" cy="18" r="1" fill="#5c4a3d"/>
+    <text x="24" y="47" font-size="12" fill="#e8848f" text-anchor="middle" font-family="inherit">💥</text>
+    <line x1="18" y1="58" x2="18" y2="61" stroke="rgba(92,74,61,.35)" stroke-width="3" stroke-linecap="round"/>
+    <line x1="54" y1="58" x2="54" y2="61" stroke="rgba(92,74,61,.35)" stroke-width="3" stroke-linecap="round"/>
+  </svg>`;
+
 const GAMES = [
   { href:'tidier.html',      ico:icoTidier, nm:'A Little Tidier', tag:'drag things until they feel just right' },
   { href:'sudoku.html',      ico:icoSudoku, nm:'Sudoku',          tag:'numbers, but make them cozy' },
@@ -139,6 +153,7 @@ const GAMES = [
   { href:'luckynumber.html', ico:icoLucky,  nm:'Lucky Number',    tag:'narrow 100 (or 1000!) numbers down to the one' },
   { href:'codevault.html',   ico:icoVault,  nm:'Code Vault',      tag:'crack the peg code — solo vs Chip or live online' },
   { href:'hangman.html',     ico:icoHangman,nm:'Hangman',         tag:'guess the word — solo vs Archie or live online' },
+  { href:'bathtub.html',     ico:icoBathtub,nm:'Bathtub Battle',  tag:'sink the toy fleet — solo vs the pack or live online' },
 ];
 
 const room = document.getElementById('room');
@@ -160,7 +175,7 @@ function showHome(){
   history.replaceState(null, '', location.pathname);
   room.innerHTML = bunting() + `
     <div class="bigtitle" style="font-size:52px;">Gail's Game Room</div>
-    <div class="sub">eight cozy games, one happy pup pile ♥</div>
+    <div class="sub">nine cozy games, one happy pup pile ♥</div>
     <button class="btn" id="enterBtn">come on in </button>`;
   addTwinkles(8);
   document.getElementById('enterBtn').onclick = showGames;
